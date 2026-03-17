@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Base64 Encoder/Decoder</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f5f5f5;
+            color: #1a1a1a;
+            padding: 2rem 1rem;
+        }
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 2rem;
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        textarea {
+            width: 100%;
+            min-height: 120px;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 0.875rem;
+            resize: vertical;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+        }
+        .buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+        button {
+            padding: 0.5rem 1.25rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.15s;
+        }
+        .btn-primary {
+            background-color: #2563eb;
+            color: #fff;
+        }
+        .btn-primary:hover { background-color: #1d4ed8; }
+        .btn-secondary {
+            background-color: #e5e7eb;
+            color: #1a1a1a;
+        }
+        .btn-secondary:hover { background-color: #d1d5db; }
+        .output-section { margin-top: 1.5rem; }
+        .output-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .error {
+            color: #dc2626;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+        .copied {
+            color: #16a34a;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Base64 Encoder/Decoder</h1>
+        <label for="input">Input</label>
+        <textarea id="input" placeholder="Enter text to encode, or Base64 to decode…"></textarea>
+        <div class="buttons">
+            <button class="btn-primary" onclick="encode()">Encode</button>
+            <button class="btn-primary" onclick="decode()">Decode</button>
+        </div>
+        <div id="error" class="error"></div>
+        <div class="output-section">
+            <div class="output-header">
+                <label for="output">Output</label>
+                <button class="btn-secondary" onclick="copyOutput()">Copy</button>
+            </div>
+            <textarea id="output" readonly></textarea>
+            <span id="copied" class="copied"></span>
+        </div>
+    </div>
+    <script>
+        const inputEl = document.getElementById('input');
+        const outputEl = document.getElementById('output');
+        const errorEl = document.getElementById('error');
+        const copiedEl = document.getElementById('copied');
+
+        function clearMessages() {
+            errorEl.textContent = '';
+            copiedEl.textContent = '';
+        }
+
+        function encode() {
+            clearMessages();
+            try {
+                const str = inputEl.value;
+                const bytes = new TextEncoder().encode(str);
+                let binary = '';
+                for (const b of bytes) binary += String.fromCharCode(b);
+                outputEl.value = btoa(binary);
+            } catch (e) {
+                errorEl.textContent = 'Encoding failed: ' + e.message;
+            }
+        }
+
+        function decode() {
+            clearMessages();
+            try {
+                const binary = atob(inputEl.value.trim());
+                const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+                outputEl.value = new TextDecoder().decode(bytes);
+            } catch (e) {
+                errorEl.textContent = 'Invalid Base64 input.';
+            }
+        }
+
+        function copyOutput() {
+            copiedEl.textContent = '';
+            navigator.clipboard.writeText(outputEl.value).then(() => {
+                copiedEl.textContent = 'Copied!';
+                setTimeout(() => copiedEl.textContent = '', 1500);
+            });
+        }
+    </script>
+</body>
+</html>
