@@ -386,6 +386,23 @@
             });
         }
 
+        function playHoldTick(count) {
+            if (muted || !audioCtx) return;
+            // Two short beeps to signal a 30s marker
+            for (let i = 0; i < count && i < 5; i++) {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = 600;
+                gain.gain.setValueAtTime(0.12, audioCtx.currentTime + i * 0.25);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + i * 0.25 + 0.12);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(audioCtx.currentTime + i * 0.25);
+                osc.stop(audioCtx.currentTime + i * 0.25 + 0.12);
+            }
+        }
+
         function playHoldStart() {
             if (muted || !audioCtx) return;
             const osc = audioCtx.createOscillator();
@@ -553,6 +570,9 @@
                 await sleep(1000);
                 seconds++;
                 timerLabel.textContent = formatTime(seconds);
+                if (seconds > 0 && seconds % 30 === 0) {
+                    playHoldTick(seconds / 30);
+                }
             }
 
             circleContainer.removeEventListener('click', endHold);
