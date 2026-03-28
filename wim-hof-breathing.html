@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wim Hof Breathing</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f5f5f5;
+            color: #1a1a1a;
+            padding: 2rem 1rem;
+        }
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 2rem;
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.25rem;
+        }
+        .subtitle {
+            color: #6b7280;
+            font-size: 0.875rem;
+            margin-bottom: 1.5rem;
+        }
+        h2 {
+            font-size: 1.125rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Settings */
+        .settings { margin-bottom: 1.5rem; }
+        .setting-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+        }
+        .setting-row label {
+            font-weight: 600;
+            font-size: 0.875rem;
+            min-width: 140px;
+        }
+        .setting-row input {
+            width: 80px;
+            padding: 0.4rem 0.6rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            text-align: center;
+        }
+        .setting-row input:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+        }
+
+        /* Buttons */
+        button {
+            padding: 0.5rem 1.25rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.15s;
+        }
+        .btn-primary {
+            background-color: #2563eb;
+            color: #fff;
+        }
+        .btn-primary:hover { background-color: #1d4ed8; }
+        .btn-secondary {
+            background-color: #e5e7eb;
+            color: #1a1a1a;
+        }
+        .btn-secondary:hover { background-color: #d1d5db; }
+        .btn-danger {
+            background-color: #fee2e2;
+            color: #dc2626;
+        }
+        .btn-danger:hover { background-color: #fecaca; }
+        .btn-start {
+            padding: 0.75rem 2.5rem;
+            font-size: 1rem;
+        }
+        .controls {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+            margin-top: 1.25rem;
+        }
+
+        /* Breathing circle area */
+        .session-area {
+            display: none;
+            text-align: center;
+            padding: 1rem 0;
+        }
+        .round-label {
+            font-size: 0.875rem;
+            color: #6b7280;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+        .circle-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 220px;
+            margin-bottom: 1rem;
+        }
+        .breathing-circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #60a5fa, #2563eb);
+            transition: width 1.3s ease-in-out, height 1.3s ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .breathing-circle.inhale {
+            width: 200px;
+            height: 200px;
+        }
+        .breathing-circle.hold {
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle at 35% 35%, #fbbf24, #d97706);
+            transition: background 0.5s;
+        }
+        .breathing-circle.hold-empty {
+            width: 80px;
+            height: 80px;
+            background: radial-gradient(circle at 35% 35%, #f87171, #dc2626);
+            transition: background 0.5s;
+        }
+        .breathing-circle.recovery {
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle at 35% 35%, #34d399, #059669);
+            transition: background 0.5s;
+        }
+        .phase-label {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+        .counter-label {
+            font-size: 1rem;
+            color: #6b7280;
+        }
+        .timer-label {
+            font-size: 2rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            color: #1a1a1a;
+        }
+        .tap-hint {
+            font-size: 0.8rem;
+            color: #9ca3af;
+            margin-top: 0.25rem;
+        }
+
+        /* Round indicators */
+        .round-indicators {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .round-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #e5e7eb;
+        }
+        .round-dot.done { background: #2563eb; }
+        .round-dot.active {
+            background: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.3);
+        }
+
+        /* History section */
+        .history-section {
+            margin-top: 2rem;
+            border-top: 1px solid #f3f4f6;
+            padding-top: 1.5rem;
+        }
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .history-header h2 { margin-bottom: 0; }
+        .history-toggle {
+            font-size: 0.8rem;
+            color: #6b7280;
+        }
+        .history-content {
+            display: none;
+            margin-top: 1rem;
+        }
+        .history-content.open { display: block; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        .stat-card {
+            background: #f9fafb;
+            border-radius: 6px;
+            padding: 0.75rem;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #2563eb;
+        }
+        .stat-label {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 0.125rem;
+        }
+        .session-list {
+            list-style: none;
+        }
+        .session-item {
+            padding: 0.6rem 0;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 0.85rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        .session-item:last-child { border-bottom: none; }
+        .session-date { font-weight: 600; }
+        .session-detail { color: #6b7280; }
+        .no-sessions { color: #9ca3af; font-size: 0.875rem; }
+        .history-actions {
+            margin-top: 0.75rem;
+            text-align: right;
+        }
+
+        /* Complete screen */
+        .complete-screen { display: none; text-align: center; padding: 2rem 0; }
+        .complete-screen h2 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+        .complete-summary {
+            color: #6b7280;
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Wim Hof Breathing</h1>
+        <p class="subtitle">Guided breathing exercise with sound feedback</p>
+
+        <!-- Settings -->
+        <div id="settingsArea" class="settings">
+            <div class="setting-row">
+                <label for="roundsInput">Rounds</label>
+                <input type="number" id="roundsInput" value="3" min="1" max="10">
+            </div>
+            <div class="setting-row">
+                <label for="breathsInput">Breaths per round</label>
+                <input type="number" id="breathsInput" value="30" min="10" max="60">
+            </div>
+            <div class="controls">
+                <button class="btn-primary btn-start" onclick="startSession()">Start</button>
+            </div>
+        </div>
+
+        <!-- Session -->
+        <div id="sessionArea" class="session-area">
+            <div class="round-indicators" id="roundIndicators"></div>
+            <div class="round-label" id="roundLabel"></div>
+            <div class="circle-container" id="circleContainer">
+                <div class="breathing-circle" id="breathCircle"></div>
+            </div>
+            <div class="phase-label" id="phaseLabel"></div>
+            <div class="counter-label" id="counterLabel"></div>
+            <div class="timer-label" id="timerLabel"></div>
+            <div class="tap-hint" id="tapHint"></div>
+            <div class="controls">
+                <button class="btn-secondary" id="muteBtn" onclick="toggleMute()">Mute</button>
+                <button class="btn-danger" onclick="stopSession()">Stop</button>
+            </div>
+        </div>
+
+        <!-- Complete -->
+        <div id="completeScreen" class="complete-screen">
+            <h2>Session Complete</h2>
+            <div class="complete-summary" id="completeSummary"></div>
+            <button class="btn-primary btn-start" onclick="resetToSettings()">New Session</button>
+        </div>
+
+        <!-- History -->
+        <div class="history-section">
+            <div class="history-header" onclick="toggleHistory()">
+                <h2>History</h2>
+                <span class="history-toggle" id="historyToggle">Show</span>
+            </div>
+            <div class="history-content" id="historyContent">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="streakValue">0</div>
+                        <div class="stat-label">Day Streak</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalSessions">0</div>
+                        <div class="stat-label">Sessions</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="bestHold">0s</div>
+                        <div class="stat-label">Best Hold</div>
+                    </div>
+                </div>
+                <ul class="session-list" id="sessionList"></ul>
+                <div class="history-actions" id="historyActions">
+                    <button class="btn-danger" onclick="clearHistory()">Clear History</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- State ---
+        let audioCtx = null;
+        let muted = false;
+        let running = false;
+        let aborted = false;
+        let totalRounds = 3;
+        let breathsPerRound = 30;
+        let holdTimes = [];
+
+        // --- Audio ---
+        function ensureAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playTone(startFreq, endFreq, duration, type = 'sine', volume = 0.15) {
+            if (muted || !audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(startFreq, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(endFreq, audioCtx.currentTime + duration);
+            gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function playInhale() { playTone(300, 500, 1.2, 'sine', 0.12); }
+        function playExhale() { playTone(500, 300, 0.7, 'sine', 0.1); }
+
+        function playChime() {
+            if (muted || !audioCtx) return;
+            [523, 659, 784].forEach((freq, i) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime + i * 0.12);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + i * 0.12 + 0.5);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(audioCtx.currentTime + i * 0.12);
+                osc.stop(audioCtx.currentTime + i * 0.12 + 0.5);
+            });
+        }
+
+        function playHoldStart() {
+            if (muted || !audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.value = 440;
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.8);
+        }
+
+        function playSuccess() {
+            if (muted || !audioCtx) return;
+            [523, 659, 784, 1047].forEach((freq, i) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime + i * 0.15);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + i * 0.15 + 0.4);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(audioCtx.currentTime + i * 0.15);
+                osc.stop(audioCtx.currentTime + i * 0.15 + 0.4);
+            });
+        }
+
+        // --- Helpers ---
+        function sleep(ms) {
+            return new Promise(resolve => {
+                const id = setTimeout(resolve, ms);
+                sleepIds.push(id);
+            });
+        }
+        let sleepIds = [];
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return m > 0 ? `${m}:${String(s).padStart(2, '0')}` : `${s}s`;
+        }
+
+        // --- DOM ---
+        const settingsArea = document.getElementById('settingsArea');
+        const sessionArea = document.getElementById('sessionArea');
+        const completeScreen = document.getElementById('completeScreen');
+        const roundIndicators = document.getElementById('roundIndicators');
+        const roundLabel = document.getElementById('roundLabel');
+        const breathCircle = document.getElementById('breathCircle');
+        const circleContainer = document.getElementById('circleContainer');
+        const phaseLabel = document.getElementById('phaseLabel');
+        const counterLabel = document.getElementById('counterLabel');
+        const timerLabel = document.getElementById('timerLabel');
+        const tapHint = document.getElementById('tapHint');
+        const muteBtn = document.getElementById('muteBtn');
+
+        function toggleMute() {
+            muted = !muted;
+            muteBtn.textContent = muted ? 'Unmute' : 'Mute';
+        }
+
+        function showScreen(screen) {
+            settingsArea.style.display = 'none';
+            sessionArea.style.display = 'none';
+            completeScreen.style.display = 'none';
+            screen.style.display = 'block';
+        }
+
+        function buildRoundDots() {
+            roundIndicators.innerHTML = '';
+            for (let i = 0; i < totalRounds; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'round-dot';
+                dot.id = 'dot-' + i;
+                roundIndicators.appendChild(dot);
+            }
+        }
+
+        function setDotState(round, state) {
+            const dot = document.getElementById('dot-' + round);
+            if (dot) dot.className = 'round-dot ' + state;
+        }
+
+        // --- Session Logic ---
+        async function startSession() {
+            totalRounds = Math.max(1, Math.min(10, parseInt(document.getElementById('roundsInput').value) || 3));
+            breathsPerRound = Math.max(10, Math.min(60, parseInt(document.getElementById('breathsInput').value) || 30));
+            holdTimes = [];
+            running = true;
+            aborted = false;
+
+            ensureAudio();
+            buildRoundDots();
+            showScreen(sessionArea);
+
+            for (let round = 0; round < totalRounds; round++) {
+                if (aborted) return;
+                setDotState(round, 'active');
+                roundLabel.textContent = `Round ${round + 1} of ${totalRounds}`;
+
+                // Phase 1: Power breaths
+                await doPowerBreaths(round);
+                if (aborted) return;
+
+                // Phase 2: Breath hold
+                const holdTime = await doBreathHold(round);
+                if (aborted) return;
+                holdTimes.push(holdTime);
+
+                // Phase 3: Recovery breath
+                await doRecoveryBreath(round);
+                if (aborted) return;
+
+                setDotState(round, 'done');
+                playSuccess();
+            }
+
+            running = false;
+            saveSession();
+            showComplete();
+        }
+
+        async function doPowerBreaths(round) {
+            breathCircle.className = 'breathing-circle';
+            for (let i = 1; i <= breathsPerRound; i++) {
+                if (aborted) return;
+
+                // Inhale
+                phaseLabel.textContent = 'Breathe In';
+                counterLabel.textContent = `${i} / ${breathsPerRound}`;
+                timerLabel.textContent = '';
+                tapHint.textContent = '';
+                breathCircle.className = 'breathing-circle inhale';
+                playInhale();
+                await sleep(1300);
+                if (aborted) return;
+
+                // Exhale
+                phaseLabel.textContent = 'Breathe Out';
+                breathCircle.className = 'breathing-circle';
+                playExhale();
+                await sleep(700);
+            }
+        }
+
+        async function doBreathHold(round) {
+            phaseLabel.textContent = 'Hold';
+            counterLabel.textContent = 'Exhale and hold';
+            timerLabel.textContent = '0s';
+            tapHint.textContent = 'Tap anywhere to end hold';
+            breathCircle.className = 'breathing-circle hold-empty';
+            playHoldStart();
+
+            let seconds = 0;
+            let holdEnded = false;
+
+            const endHold = () => { holdEnded = true; };
+            circleContainer.addEventListener('click', endHold);
+            document.addEventListener('keydown', endHold);
+
+            while (!holdEnded && !aborted) {
+                await sleep(1000);
+                seconds++;
+                timerLabel.textContent = formatTime(seconds);
+            }
+
+            circleContainer.removeEventListener('click', endHold);
+            document.removeEventListener('keydown', endHold);
+            tapHint.textContent = '';
+
+            return seconds;
+        }
+
+        async function doRecoveryBreath(round) {
+            // Inhale
+            phaseLabel.textContent = 'Recovery Breath';
+            counterLabel.textContent = 'Breathe in deeply';
+            timerLabel.textContent = '';
+            tapHint.textContent = '';
+            breathCircle.className = 'breathing-circle recovery';
+            playInhale();
+            await sleep(2000);
+            if (aborted) return;
+
+            // Hold 15 seconds
+            phaseLabel.textContent = 'Hold';
+            counterLabel.textContent = 'Hold your breath';
+            breathCircle.className = 'breathing-circle hold';
+
+            for (let s = 15; s >= 0; s--) {
+                if (aborted) return;
+                timerLabel.textContent = `${s}s`;
+                if (s === 0) {
+                    playChime();
+                } else if (s === 3) {
+                    playTone(440, 440, 0.15, 'sine', 0.08);
+                }
+                await sleep(1000);
+            }
+
+            // Exhale
+            phaseLabel.textContent = 'Exhale';
+            counterLabel.textContent = '';
+            timerLabel.textContent = '';
+            breathCircle.className = 'breathing-circle';
+            playExhale();
+            await sleep(1500);
+        }
+
+        function stopSession() {
+            aborted = true;
+            running = false;
+            sleepIds.forEach(id => clearTimeout(id));
+            sleepIds = [];
+            resetToSettings();
+        }
+
+        function showComplete() {
+            const summary = holdTimes.map((t, i) => `Round ${i + 1}: held for ${formatTime(t)}`).join('<br>');
+            const longest = Math.max(...holdTimes);
+            document.getElementById('completeSummary').innerHTML =
+                `${totalRounds} rounds completed<br>${summary}<br><br>Longest hold: <strong>${formatTime(longest)}</strong>`;
+            showScreen(completeScreen);
+            renderHistory();
+        }
+
+        function resetToSettings() {
+            showScreen(settingsArea);
+            breathCircle.className = 'breathing-circle';
+            phaseLabel.textContent = '';
+            counterLabel.textContent = '';
+            timerLabel.textContent = '';
+            tapHint.textContent = '';
+        }
+
+        // --- Storage & History ---
+        const STORAGE_KEY = 'wimHofSessions';
+
+        function loadSessions() {
+            try {
+                return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+            } catch { return []; }
+        }
+
+        function saveSessions(sessions) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+        }
+
+        function saveSession() {
+            const sessions = loadSessions();
+            sessions.push({
+                date: new Date().toISOString().slice(0, 10),
+                rounds: totalRounds,
+                breathsPerRound: breathsPerRound,
+                holdTimes: holdTimes
+            });
+            saveSessions(sessions);
+        }
+
+        function calculateStreak() {
+            const sessions = loadSessions();
+            if (sessions.length === 0) return 0;
+            const dates = [...new Set(sessions.map(s => s.date))].sort().reverse();
+            const today = new Date().toISOString().slice(0, 10);
+            const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+            if (dates[0] !== today && dates[0] !== yesterday) return 0;
+
+            let streak = 1;
+            for (let i = 1; i < dates.length; i++) {
+                const prev = new Date(dates[i - 1]);
+                const curr = new Date(dates[i]);
+                const diff = (prev - curr) / 86400000;
+                if (diff === 1) streak++;
+                else break;
+            }
+            return streak;
+        }
+
+        function renderHistory() {
+            const sessions = loadSessions();
+            document.getElementById('streakValue').textContent = calculateStreak();
+            document.getElementById('totalSessions').textContent = sessions.length;
+
+            const allHolds = sessions.flatMap(s => s.holdTimes || []);
+            const best = allHolds.length > 0 ? Math.max(...allHolds) : 0;
+            document.getElementById('bestHold').textContent = best > 0 ? formatTime(best) : '—';
+
+            const list = document.getElementById('sessionList');
+            const actions = document.getElementById('historyActions');
+            if (sessions.length === 0) {
+                list.innerHTML = '<li class="no-sessions">No sessions yet. Start your first one!</li>';
+                actions.style.display = 'none';
+                return;
+            }
+            actions.style.display = 'block';
+
+            const recent = sessions.slice(-20).reverse();
+            list.innerHTML = recent.map(s => {
+                const longest = s.holdTimes ? formatTime(Math.max(...s.holdTimes)) : '—';
+                return `<li class="session-item">
+                    <span class="session-date">${s.date}</span>
+                    <span class="session-detail">${s.rounds} rounds · best hold ${longest}</span>
+                </li>`;
+            }).join('');
+        }
+
+        function toggleHistory() {
+            const content = document.getElementById('historyContent');
+            const toggle = document.getElementById('historyToggle');
+            const isOpen = content.classList.toggle('open');
+            toggle.textContent = isOpen ? 'Hide' : 'Show';
+        }
+
+        function clearHistory() {
+            if (confirm('Clear all session history? This cannot be undone.')) {
+                localStorage.removeItem(STORAGE_KEY);
+                renderHistory();
+            }
+        }
+
+        // Init
+        renderHistory();
+    </script>
+</body>
+</html>
