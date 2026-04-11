@@ -48,6 +48,9 @@
         .stage video {
             object-fit: cover;
         }
+        .stage video.hidden {
+            opacity: 0;
+        }
         .stage canvas {
             pointer-events: none;
         }
@@ -93,6 +96,53 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
+        .options {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.75rem;
+            margin-top: 0.75rem;
+            padding: 0.75rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            background: #f9fafb;
+            font-size: 0.875rem;
+        }
+        .options .field {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .options select {
+            font: inherit;
+            padding: 0.35rem 0.5rem;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            background: #fff;
+            max-width: 220px;
+        }
+        .options .toggles {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+        .options .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.3rem 0.65rem;
+            border-radius: 999px;
+            border: 1px solid #d1d5db;
+            background: #fff;
+            cursor: pointer;
+            user-select: none;
+            font-weight: 500;
+        }
+        .options .chip input {
+            accent-color: #2563eb;
+            margin: 0;
+        }
+        .options .field-camera[hidden] { display: none; }
         .status {
             margin-top: 0.75rem;
             font-size: 0.875rem;
@@ -195,9 +245,36 @@
                 position: fixed;
                 left: 1rem;
                 right: 1rem;
-                bottom: calc(env(safe-area-inset-bottom, 0px) + 5rem);
+                bottom: calc(env(safe-area-inset-bottom, 0px) + 9rem);
                 margin: 0;
                 z-index: 10;
+            }
+            .options {
+                position: fixed;
+                left: 50%;
+                bottom: calc(env(safe-area-inset-bottom, 0px) + 4.5rem);
+                transform: translateX(-50%);
+                margin: 0;
+                padding: 0.5rem 0.75rem;
+                gap: 0.5rem;
+                max-width: calc(100vw - 1rem);
+                background: rgba(0, 0, 0, 0.55);
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                color: #fff;
+                backdrop-filter: blur(6px);
+                -webkit-backdrop-filter: blur(6px);
+                z-index: 10;
+                justify-content: center;
+            }
+            .options select {
+                background: rgba(255, 255, 255, 0.95);
+                color: #1a1a1a;
+                border-color: transparent;
+            }
+            .options .chip {
+                background: rgba(255, 255, 255, 0.12);
+                border-color: rgba(255, 255, 255, 0.3);
+                color: #fff;
             }
         }
     </style>
@@ -216,6 +293,19 @@
         <div class="controls">
             <button id="startBtn" class="primary" type="button">Start camera</button>
             <button id="stopBtn" type="button" disabled>Stop camera</button>
+        </div>
+
+        <div class="options">
+            <label class="field field-camera" id="cameraField" hidden>
+                <span>Camera</span>
+                <select id="cameraSelect"></select>
+            </label>
+            <div class="toggles">
+                <label class="chip"><input type="checkbox" id="toggleVideo" checked> Video</label>
+                <label class="chip"><input type="checkbox" id="toggleMesh" checked> Mesh</label>
+                <label class="chip"><input type="checkbox" id="toggleContours" checked> Contours</label>
+                <label class="chip"><input type="checkbox" id="toggleDots" checked> Dots</label>
+            </div>
         </div>
 
         <div id="status" class="status"></div>
@@ -241,6 +331,12 @@
         const statusEl = document.getElementById("status");
         const errorEl = document.getElementById("error");
         const placeholder = document.getElementById("placeholder");
+        const cameraField = document.getElementById("cameraField");
+        const cameraSelect = document.getElementById("cameraSelect");
+        const toggleVideo = document.getElementById("toggleVideo");
+        const toggleMesh = document.getElementById("toggleMesh");
+        const toggleContours = document.getElementById("toggleContours");
+        const toggleDots = document.getElementById("toggleDots");
 
         let faceLandmarker = null;
         let drawingUtils = null;
@@ -250,6 +346,7 @@
         let frameCount = 0;
         let fpsTimer = performance.now();
         let fps = 0;
+        let currentDeviceId = null;
 
         function showError(msg) {
             errorEl.textContent = msg;
@@ -296,37 +393,47 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             if (!results.faceLandmarks || results.faceLandmarks.length === 0) return;
 
+            const showMesh = toggleMesh.checked;
+            const showContours = toggleContours.checked;
+            const showDots = toggleDots.checked;
+
             for (const landmarks of results.faceLandmarks) {
-                drawingUtils.drawConnectors(
-                    landmarks,
-                    FaceLandmarker.FACE_LANDMARKS_TESSELATION,
-                    { color: "rgba(192, 192, 192, 0.6)", lineWidth: 1 }
-                );
-                const contours = [
-                    FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
-                    FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
-                    FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
-                    FaceLandmarker.FACE_LANDMARKS_LEFT_EYEBROW,
-                    FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW,
-                    FaceLandmarker.FACE_LANDMARKS_LIPS,
-                    FaceLandmarker.FACE_LANDMARKS_LEFT_IRIS,
-                    FaceLandmarker.FACE_LANDMARKS_RIGHT_IRIS,
-                ];
-                for (const set of contours) {
-                    if (!set) continue;
-                    drawingUtils.drawConnectors(landmarks, set, {
-                        color: "#2563eb",
-                        lineWidth: 2,
-                    });
+                if (showMesh) {
+                    drawingUtils.drawConnectors(
+                        landmarks,
+                        FaceLandmarker.FACE_LANDMARKS_TESSELATION,
+                        { color: "rgba(192, 192, 192, 0.6)", lineWidth: 1 }
+                    );
+                }
+                if (showContours) {
+                    const contours = [
+                        FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
+                        FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
+                        FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
+                        FaceLandmarker.FACE_LANDMARKS_LEFT_EYEBROW,
+                        FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW,
+                        FaceLandmarker.FACE_LANDMARKS_LIPS,
+                        FaceLandmarker.FACE_LANDMARKS_LEFT_IRIS,
+                        FaceLandmarker.FACE_LANDMARKS_RIGHT_IRIS,
+                    ];
+                    for (const set of contours) {
+                        if (!set) continue;
+                        drawingUtils.drawConnectors(landmarks, set, {
+                            color: "#2563eb",
+                            lineWidth: 2,
+                        });
+                    }
                 }
 
-                ctx.fillStyle = "#60a5fa";
-                for (const pt of landmarks) {
-                    const x = pt.x * canvas.width;
-                    const y = pt.y * canvas.height;
-                    ctx.beginPath();
-                    ctx.arc(x, y, 1.5, 0, Math.PI * 2);
-                    ctx.fill();
+                if (showDots) {
+                    ctx.fillStyle = "#60a5fa";
+                    for (const pt of landmarks) {
+                        const x = pt.x * canvas.width;
+                        const y = pt.y * canvas.height;
+                        ctx.beginPath();
+                        ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
                 }
             }
         }
@@ -358,6 +465,77 @@
             rafId = requestAnimationFrame(renderLoop);
         }
 
+        async function openStream(deviceId) {
+            const videoConstraints = deviceId
+                ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+                : { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } };
+            return await navigator.mediaDevices.getUserMedia({
+                video: videoConstraints,
+                audio: false,
+            });
+        }
+
+        function describeCameraError(err) {
+            if (!err) return "Could not start the camera.";
+            if (err.name === "NotAllowedError") return "Camera permission denied. Allow camera access and try again.";
+            if (err.name === "NotFoundError") return "No camera found on this device.";
+            if (err.name === "NotReadableError") return "The camera is already in use by another application.";
+            if (err.name === "OverconstrainedError") return "The selected camera is not available.";
+            return err.message || "Could not start the camera.";
+        }
+
+        async function attachStream(newStream) {
+            stream = newStream;
+            const track = stream.getVideoTracks()[0];
+            currentDeviceId = (track && track.getSettings && track.getSettings().deviceId) || currentDeviceId;
+            video.srcObject = stream;
+            await new Promise((resolve) => {
+                if (video.readyState >= 2) return resolve();
+                video.addEventListener("loadeddata", () => resolve(), { once: true });
+            });
+            resizeCanvas();
+            lastVideoTime = -1;
+        }
+
+        async function populateCameraList() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const cams = devices.filter((d) => d.kind === "videoinput");
+                cameraSelect.innerHTML = "";
+                cams.forEach((cam, i) => {
+                    const opt = document.createElement("option");
+                    opt.value = cam.deviceId;
+                    opt.textContent = cam.label || `Camera ${i + 1}`;
+                    cameraSelect.appendChild(opt);
+                });
+                if (currentDeviceId) cameraSelect.value = currentDeviceId;
+                cameraField.hidden = cams.length < 2;
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function switchCamera(deviceId) {
+            if (!stream) return;
+            cameraSelect.disabled = true;
+            // Stop current tracks before opening a new stream — many mobile
+            // browsers refuse to open a second concurrent video stream.
+            for (const track of stream.getTracks()) track.stop();
+            stream = null;
+            try {
+                const newStream = await openStream(deviceId);
+                await attachStream(newStream);
+                clearError();
+            } catch (err) {
+                console.error(err);
+                showError(describeCameraError(err));
+                stop();
+            } finally {
+                cameraSelect.disabled = false;
+            }
+        }
+
         async function start() {
             clearError();
             startBtn.disabled = true;
@@ -373,38 +551,22 @@
 
             try {
                 setStatus("Requesting camera\u2026");
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
-                    audio: false,
-                });
+                const newStream = await openStream(currentDeviceId);
+                await attachStream(newStream);
             } catch (err) {
                 console.error(err);
-                if (err && err.name === "NotAllowedError") {
-                    showError("Camera permission denied. Allow camera access and try again.");
-                } else if (err && err.name === "NotFoundError") {
-                    showError("No camera found on this device.");
-                } else if (err && err.name === "NotReadableError") {
-                    showError("The camera is already in use by another application.");
-                } else {
-                    showError((err && err.message) || "Could not start the camera.");
-                }
+                showError(describeCameraError(err));
                 startBtn.disabled = false;
                 setStatus("");
                 return;
             }
 
-            video.srcObject = stream;
             placeholder.style.display = "none";
-            await new Promise((resolve) => {
-                if (video.readyState >= 2) return resolve();
-                video.addEventListener("loadeddata", () => resolve(), { once: true });
-            });
-            resizeCanvas();
-            lastVideoTime = -1;
             frameCount = 0;
             fpsTimer = performance.now();
             stopBtn.disabled = false;
             setStatus("Detecting\u2026");
+            await populateCameraList();
             rafId = requestAnimationFrame(renderLoop);
         }
 
@@ -426,6 +588,20 @@
         startBtn.addEventListener("click", start);
         stopBtn.addEventListener("click", stop);
         window.addEventListener("pagehide", stop);
+
+        cameraSelect.addEventListener("change", () => {
+            switchCamera(cameraSelect.value);
+        });
+
+        toggleVideo.addEventListener("change", () => {
+            video.classList.toggle("hidden", !toggleVideo.checked);
+        });
+
+        if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+            navigator.mediaDevices.addEventListener("devicechange", () => {
+                if (stream) populateCameraList();
+            });
+        }
 
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             showError("This browser does not support camera access (getUserMedia).");
