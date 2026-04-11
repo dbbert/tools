@@ -54,22 +54,30 @@
         .stage canvas {
             pointer-events: none;
         }
-        .stage .placeholder {
+        .stage-start {
             position: absolute;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #9ca3af;
-            font-size: 0.9rem;
-            text-align: center;
-            padding: 1rem;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            padding: 0.85rem 1.75rem;
+            font-size: 1rem;
+            border-radius: 999px;
+            background: #2563eb;
+            border: 1px solid #2563eb;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            z-index: 5;
         }
-        .controls {
-            display: flex;
-            gap: 0.5rem;
-            margin-top: 1rem;
-            flex-wrap: wrap;
+        .stage-start:hover:not(:disabled) {
+            background: #1d4ed8;
+        }
+        .container.running .stage-start {
+            display: none;
+        }
+        .menu-btn {
+            display: none;
         }
         button {
             font: inherit;
@@ -203,27 +211,32 @@
                 aspect-ratio: auto;
                 border-radius: 0;
             }
-            .stage .placeholder {
-                color: #d1d5db;
-                font-size: 1rem;
+            .stage-start {
+                padding: 1rem 2rem;
+                font-size: 1.05rem;
             }
-            .controls {
+            .container.running .menu-btn {
+                display: flex;
                 position: fixed;
-                left: 50%;
+                right: calc(env(safe-area-inset-right, 0px) + 1rem);
                 bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
-                transform: translateX(-50%);
-                margin: 0;
-                gap: 0.75rem;
+                width: 48px;
+                height: 48px;
+                padding: 0;
+                border-radius: 50%;
+                background: rgba(0, 0, 0, 0.6);
+                border: 1px solid rgba(255, 255, 255, 0.25);
+                color: #fff;
+                align-items: center;
                 justify-content: center;
-                z-index: 10;
-            }
-            .controls button {
-                padding: 0.75rem 1.25rem;
+                backdrop-filter: blur(6px);
+                -webkit-backdrop-filter: blur(6px);
                 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+                z-index: 20;
             }
-            .controls button:not(.primary) {
-                background: rgba(255, 255, 255, 0.9);
-                border-color: rgba(255, 255, 255, 0.9);
+            .container.running .menu-btn[aria-expanded="true"] {
+                background: rgba(37, 99, 235, 0.85);
+                border-color: rgba(255, 255, 255, 0.4);
             }
             .status {
                 position: fixed;
@@ -245,33 +258,46 @@
                 position: fixed;
                 left: 1rem;
                 right: 1rem;
-                bottom: calc(env(safe-area-inset-bottom, 0px) + 9rem);
+                bottom: calc(env(safe-area-inset-bottom, 0px) + 5rem);
                 margin: 0;
                 z-index: 10;
             }
             .options {
+                display: none;
+            }
+            .container.running .options.open {
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
                 position: fixed;
-                left: 50%;
+                right: calc(env(safe-area-inset-right, 0px) + 1rem);
                 bottom: calc(env(safe-area-inset-bottom, 0px) + 4.5rem);
-                transform: translateX(-50%);
                 margin: 0;
-                padding: 0.5rem 0.75rem;
+                padding: 0.75rem;
                 gap: 0.5rem;
-                max-width: calc(100vw - 1rem);
-                background: rgba(0, 0, 0, 0.55);
+                min-width: 200px;
+                max-width: calc(100vw - 2rem);
+                background: rgba(0, 0, 0, 0.75);
                 border: 1px solid rgba(255, 255, 255, 0.15);
                 color: #fff;
-                backdrop-filter: blur(6px);
-                -webkit-backdrop-filter: blur(6px);
-                z-index: 10;
-                justify-content: center;
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+                z-index: 19;
             }
-            .options select {
+            .container.running .options.open .field {
+                justify-content: space-between;
+            }
+            .container.running .options.open .toggles {
+                gap: 0.4rem;
+            }
+            .container.running .options.open select {
                 background: rgba(255, 255, 255, 0.95);
                 color: #1a1a1a;
                 border-color: transparent;
+                flex: 1;
             }
-            .options .chip {
+            .container.running .options.open .chip {
                 background: rgba(255, 255, 255, 0.12);
                 border-color: rgba(255, 255, 255, 0.3);
                 color: #fff;
@@ -287,15 +313,18 @@
         <div class="stage">
             <video id="video" autoplay playsinline muted></video>
             <canvas id="overlay"></canvas>
-            <div id="placeholder" class="placeholder">Click &ldquo;Start camera&rdquo; to begin.</div>
+            <button id="startBtn" class="stage-start" type="button">Start camera</button>
         </div>
 
-        <div class="controls">
-            <button id="startBtn" class="primary" type="button">Start camera</button>
-            <button id="stopBtn" type="button" disabled>Stop camera</button>
-        </div>
+        <button id="menuBtn" class="menu-btn" type="button" aria-label="Settings" aria-expanded="false" aria-controls="optionsPanel">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <line x1="4" y1="7" x2="20" y2="7"/>
+                <line x1="4" y1="12" x2="20" y2="12"/>
+                <line x1="4" y1="17" x2="20" y2="17"/>
+            </svg>
+        </button>
 
-        <div class="options">
+        <div class="options" id="optionsPanel">
             <label class="field field-camera" id="cameraField" hidden>
                 <span>Camera</span>
                 <select id="cameraSelect"></select>
@@ -323,14 +352,15 @@
             DrawingUtils,
         } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
 
+        const container = document.querySelector(".container");
         const video = document.getElementById("video");
         const canvas = document.getElementById("overlay");
         const ctx = canvas.getContext("2d");
         const startBtn = document.getElementById("startBtn");
-        const stopBtn = document.getElementById("stopBtn");
+        const menuBtn = document.getElementById("menuBtn");
+        const optionsPanel = document.getElementById("optionsPanel");
         const statusEl = document.getElementById("status");
         const errorEl = document.getElementById("error");
-        const placeholder = document.getElementById("placeholder");
         const cameraField = document.getElementById("cameraField");
         const cameraSelect = document.getElementById("cameraSelect");
         const toggleVideo = document.getElementById("toggleVideo");
@@ -536,6 +566,11 @@
             }
         }
 
+        function closeMenu() {
+            optionsPanel.classList.remove("open");
+            menuBtn.setAttribute("aria-expanded", "false");
+        }
+
         async function start() {
             clearError();
             startBtn.disabled = true;
@@ -561,10 +596,9 @@
                 return;
             }
 
-            placeholder.style.display = "none";
+            container.classList.add("running");
             frameCount = 0;
             fpsTimer = performance.now();
-            stopBtn.disabled = false;
             setStatus("Detecting\u2026");
             await populateCameraList();
             rafId = requestAnimationFrame(renderLoop);
@@ -579,15 +613,32 @@
             }
             video.srcObject = null;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            placeholder.style.display = "flex";
+            container.classList.remove("running");
+            closeMenu();
             startBtn.disabled = false;
-            stopBtn.disabled = true;
             setStatus("");
         }
 
         startBtn.addEventListener("click", start);
-        stopBtn.addEventListener("click", stop);
         window.addEventListener("pagehide", stop);
+
+        menuBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const isOpen = optionsPanel.classList.toggle("open");
+            menuBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        });
+
+        optionsPanel.addEventListener("click", (e) => {
+            e.stopPropagation();
+        });
+
+        document.addEventListener("click", () => {
+            if (optionsPanel.classList.contains("open")) closeMenu();
+        });
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && optionsPanel.classList.contains("open")) closeMenu();
+        });
 
         cameraSelect.addEventListener("change", () => {
             switchCamera(cameraSelect.value);
