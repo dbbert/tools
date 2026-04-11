@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#000000">
     <title>Face Camera</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -118,6 +119,87 @@
             text-decoration: none;
         }
         .footer a:hover { text-decoration: underline; }
+
+        @media (max-width: 700px) {
+            html, body {
+                height: 100%;
+                overflow: hidden;
+            }
+            body {
+                padding: 0;
+                background: #000;
+            }
+            .container {
+                max-width: none;
+                margin: 0;
+                border-radius: 0;
+                box-shadow: none;
+                padding: 0;
+                background: #000;
+                color: #fff;
+                width: 100vw;
+                height: 100dvh;
+                display: flex;
+                flex-direction: column;
+            }
+            .container > h1,
+            .container > p.lede,
+            .container > .footer {
+                display: none;
+            }
+            .stage {
+                flex: 1 1 auto;
+                width: 100%;
+                aspect-ratio: auto;
+                border-radius: 0;
+            }
+            .stage .placeholder {
+                color: #d1d5db;
+                font-size: 1rem;
+            }
+            .controls {
+                position: fixed;
+                left: 50%;
+                bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+                transform: translateX(-50%);
+                margin: 0;
+                gap: 0.75rem;
+                justify-content: center;
+                z-index: 10;
+            }
+            .controls button {
+                padding: 0.75rem 1.25rem;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+            }
+            .controls button:not(.primary) {
+                background: rgba(255, 255, 255, 0.9);
+                border-color: rgba(255, 255, 255, 0.9);
+            }
+            .status {
+                position: fixed;
+                top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+                left: 50%;
+                transform: translateX(-50%);
+                margin: 0;
+                padding: 0.25rem 0.75rem;
+                color: #fff;
+                background: rgba(0, 0, 0, 0.5);
+                border-radius: 999px;
+                backdrop-filter: blur(4px);
+                -webkit-backdrop-filter: blur(4px);
+                z-index: 10;
+                min-height: 0;
+            }
+            .status:empty { display: none; }
+            .error {
+                position: fixed;
+                left: 1rem;
+                right: 1rem;
+                bottom: calc(env(safe-area-inset-bottom, 0px) + 5rem);
+                margin: 0;
+                z-index: 10;
+            }
+        }
     </style>
 </head>
 <body>
