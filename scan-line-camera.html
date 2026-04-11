@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#000000">
+    <title>Scan Line Camera</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f5f5f5;
+            color: #1a1a1a;
+            padding: 2rem 1rem;
+        }
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 2rem;
+        }
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        p.lede {
+            color: #6b7280;
+            margin-bottom: 1.5rem;
+        }
+        .stage {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .stage video {
+            display: none;
+        }
+        .stage canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .stage-start {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            padding: 0.85rem 1.75rem;
+            font-size: 1rem;
+            border-radius: 999px;
+            background: #2563eb;
+            border: 1px solid #2563eb;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+            z-index: 5;
+        }
+        .stage-start:hover:not(:disabled) {
+            background: #1d4ed8;
+        }
+        .container.running .stage-start {
+            display: none;
+        }
+        .menu-btn {
+            display: none;
+        }
+        button {
+            font: inherit;
+            padding: 0.6rem 1.1rem;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            background: #fff;
+            color: #1a1a1a;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        button.primary {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: #fff;
+        }
+        button.primary:hover:not(:disabled) {
+            background: #1d4ed8;
+        }
+        button:hover:not(:disabled) {
+            border-color: #9ca3af;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .options {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.75rem;
+            margin-top: 0.75rem;
+            padding: 0.75rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            background: #f9fafb;
+            font-size: 0.875rem;
+        }
+        .options .field {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .options select {
+            font: inherit;
+            padding: 0.35rem 0.5rem;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            background: #fff;
+            max-width: 220px;
+        }
+        .options input[type="range"] {
+            accent-color: #2563eb;
+            width: 140px;
+        }
+        .options .duration-value {
+            font-variant-numeric: tabular-nums;
+            min-width: 2.5rem;
+        }
+        .options .toggles {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+        .options .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.3rem 0.65rem;
+            border-radius: 999px;
+            border: 1px solid #d1d5db;
+            background: #fff;
+            cursor: pointer;
+            user-select: none;
+            font-weight: 500;
+        }
+        .options .chip input {
+            accent-color: #2563eb;
+            margin: 0;
+        }
+        .options .field-camera[hidden] { display: none; }
+        .actions {
+            display: none;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+        .actions.visible { display: flex; }
+        .actions button[hidden] { display: none; }
+        .status {
+            margin-top: 0.75rem;
+            font-size: 0.875rem;
+            color: #6b7280;
+            min-height: 1.25rem;
+        }
+        .error {
+            margin-top: 0.75rem;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            background: #fee2e2;
+            color: #b91c1c;
+            font-size: 0.875rem;
+            display: none;
+        }
+        .error.visible { display: block; }
+        .footer {
+            margin-top: 1.5rem;
+            font-size: 0.8rem;
+            color: #9ca3af;
+        }
+        .footer a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+        .footer a:hover { text-decoration: underline; }
+
+        @media (max-width: 700px) {
+            html, body {
+                height: 100%;
+                overflow: hidden;
+            }
+            body {
+                padding: 0;
+                background: #000;
+            }
+            .container {
+                max-width: none;
+                margin: 0;
+                border-radius: 0;
+                box-shadow: none;
+                padding: 0;
+                background: #000;
+                color: #fff;
+                width: 100vw;
+                height: 100dvh;
+                display: flex;
+                flex-direction: column;
+            }
+            .container > h1,
+            .container > p.lede,
+            .container > .footer {
+                display: none;
+            }
+            .stage {
+                flex: 1 1 auto;
+                width: 100%;
+                aspect-ratio: auto;
+                border-radius: 0;
+            }
+            .stage-start {
+                padding: 1rem 2rem;
+                font-size: 1.05rem;
+            }
+            .container.running .menu-btn {
+                display: flex;
+                position: fixed;
+                right: calc(env(safe-area-inset-right, 0px) + 1rem);
+                bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+                width: 48px;
+                height: 48px;
+                padding: 0;
+                border-radius: 50%;
+                background: rgba(0, 0, 0, 0.6);
+                border: 1px solid rgba(255, 255, 255, 0.25);
+                color: #fff;
+                align-items: center;
+                justify-content: center;
+                backdrop-filter: blur(6px);
+                -webkit-backdrop-filter: blur(6px);
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+                z-index: 20;
+            }
+            .container.running .menu-btn[aria-expanded="true"] {
+                background: rgba(37, 99, 235, 0.85);
+                border-color: rgba(255, 255, 255, 0.4);
+            }
+            .status {
+                position: fixed;
+                top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+                left: 50%;
+                transform: translateX(-50%);
+                margin: 0;
+                padding: 0.25rem 0.75rem;
+                color: #fff;
+                background: rgba(0, 0, 0, 0.5);
+                border-radius: 999px;
+                backdrop-filter: blur(4px);
+                -webkit-backdrop-filter: blur(4px);
+                z-index: 10;
+                min-height: 0;
+            }
+            .status:empty { display: none; }
+            .error {
+                position: fixed;
+                left: 1rem;
+                right: 1rem;
+                bottom: calc(env(safe-area-inset-bottom, 0px) + 5rem);
+                margin: 0;
+                z-index: 10;
+            }
+            .options {
+                display: none;
+            }
+            .container.running .options.open {
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+                position: fixed;
+                right: calc(env(safe-area-inset-right, 0px) + 1rem);
+                bottom: calc(env(safe-area-inset-bottom, 0px) + 4.5rem);
+                margin: 0;
+                padding: 0.75rem;
+                gap: 0.5rem;
+                min-width: 220px;
+                max-width: calc(100vw - 2rem);
+                background: rgba(0, 0, 0, 0.75);
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                color: #fff;
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+                z-index: 19;
+            }
+            .container.running .options.open .field {
+                justify-content: space-between;
+            }
+            .container.running .options.open .toggles {
+                gap: 0.4rem;
+            }
+            .container.running .options.open select {
+                background: rgba(255, 255, 255, 0.95);
+                color: #1a1a1a;
+                border-color: transparent;
+                flex: 1;
+            }
+            .container.running .options.open input[type="range"] {
+                flex: 1;
+            }
+            .container.running .options.open .chip {
+                background: rgba(255, 255, 255, 0.12);
+                border-color: rgba(255, 255, 255, 0.3);
+                color: #fff;
+            }
+            .actions {
+                margin: 0;
+            }
+            .container.running .actions.visible {
+                position: fixed;
+                left: 50%;
+                transform: translateX(-50%);
+                bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+                padding: 0.6rem 0.75rem;
+                background: rgba(0, 0, 0, 0.65);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                border-radius: 999px;
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+                z-index: 18;
+                gap: 0.4rem;
+            }
+            .container.running .actions.visible button {
+                background: rgba(255, 255, 255, 0.12);
+                border-color: rgba(255, 255, 255, 0.3);
+                color: #fff;
+                padding: 0.5rem 0.9rem;
+                font-size: 0.9rem;
+            }
+            .container.running .actions.visible button.primary {
+                background: #2563eb;
+                border-color: #2563eb;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Scan Line Camera</h1>
+        <p class="lede">A bright line sweeps from the top of the frame to the bottom. As it passes, each row of the image is frozen at that exact moment — a slit-scan selfie that composites a single image out of many instants in time.</p>
+
+        <div class="stage">
+            <video id="video" autoplay playsinline muted></video>
+            <canvas id="display"></canvas>
+            <button id="startBtn" class="stage-start" type="button">Start camera</button>
+        </div>
+
+        <button id="menuBtn" class="menu-btn" type="button" aria-label="Settings" aria-expanded="false" aria-controls="optionsPanel">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <line x1="4" y1="7" x2="20" y2="7"/>
+                <line x1="4" y1="12" x2="20" y2="12"/>
+                <line x1="4" y1="17" x2="20" y2="17"/>
+            </svg>
+        </button>
+
+        <div class="options" id="optionsPanel">
+            <label class="field field-camera" id="cameraField" hidden>
+                <span>Camera</span>
+                <select id="cameraSelect"></select>
+            </label>
+            <label class="field">
+                <span>Duration</span>
+                <input type="range" id="durationInput" min="1" max="6" step="0.5" value="3">
+                <span class="duration-value" id="durationValue">3.0s</span>
+            </label>
+            <div class="toggles">
+                <label class="chip"><input type="checkbox" id="toggleMirror" checked> Mirror</label>
+            </div>
+        </div>
+
+        <div class="actions" id="actions">
+            <button id="restartBtn" class="primary" type="button">Scan again</button>
+            <button id="downloadBtn" type="button">Download PNG</button>
+            <button id="shareBtn" type="button" hidden>Share</button>
+        </div>
+
+        <div id="status" class="status"></div>
+        <div id="error" class="error" role="alert"></div>
+
+        <div class="footer">
+            &larr; <a href="index.html">Back to tools</a>
+        </div>
+    </div>
+
+    <script>
+        const container = document.querySelector(".container");
+        const video = document.getElementById("video");
+        const displayCanvas = document.getElementById("display");
+        const displayCtx = displayCanvas.getContext("2d");
+        const frozenCanvas = document.createElement("canvas");
+        const frozenCtx = frozenCanvas.getContext("2d");
+        const startBtn = document.getElementById("startBtn");
+        const menuBtn = document.getElementById("menuBtn");
+        const optionsPanel = document.getElementById("optionsPanel");
+        const statusEl = document.getElementById("status");
+        const errorEl = document.getElementById("error");
+        const cameraField = document.getElementById("cameraField");
+        const cameraSelect = document.getElementById("cameraSelect");
+        const durationInput = document.getElementById("durationInput");
+        const durationValue = document.getElementById("durationValue");
+        const toggleMirror = document.getElementById("toggleMirror");
+        const actionsEl = document.getElementById("actions");
+        const restartBtn = document.getElementById("restartBtn");
+        const downloadBtn = document.getElementById("downloadBtn");
+        const shareBtn = document.getElementById("shareBtn");
+
+        let stream = null;
+        let rafId = null;
+        let currentDeviceId = null;
+        let scanStart = 0;
+        let durationMs = 3000;
+        let prevY = 0;
+        let scanMirror = true;
+        let phase = "idle"; // idle | scanning | finished
+
+        function showError(msg) {
+            errorEl.textContent = msg;
+            errorEl.classList.add("visible");
+        }
+
+        function clearError() {
+            errorEl.textContent = "";
+            errorEl.classList.remove("visible");
+        }
+
+        function setStatus(msg) {
+            statusEl.textContent = msg;
+        }
+
+        function updateDurationLabel() {
+            const v = parseFloat(durationInput.value);
+            durationValue.textContent = `${v.toFixed(1)}s`;
+        }
+
+        function sizeCanvases() {
+            const w = video.videoWidth;
+            const h = video.videoHeight;
+            if (!w || !h) return false;
+            if (displayCanvas.width !== w || displayCanvas.height !== h) {
+                displayCanvas.width = w;
+                displayCanvas.height = h;
+                frozenCanvas.width = w;
+                frozenCanvas.height = h;
+            }
+            return true;
+        }
+
+        function drawVideoTo(ctx, w, h) {
+            if (scanMirror) {
+                ctx.save();
+                ctx.setTransform(-1, 0, 0, 1, w, 0);
+                ctx.drawImage(video, 0, 0, w, h);
+                ctx.restore();
+            } else {
+                ctx.drawImage(video, 0, 0, w, h);
+            }
+        }
+
+        function drawScanLine(ctx, y, w) {
+            const lineH = Math.max(2, Math.round(w * 0.004));
+            const glowH = Math.round(w * 0.04);
+            const gradTop = Math.max(0, y - glowH);
+            const grad = ctx.createLinearGradient(0, gradTop, 0, y + glowH);
+            grad.addColorStop(0, "rgba(96, 165, 250, 0)");
+            grad.addColorStop(0.5, "rgba(96, 165, 250, 0.35)");
+            grad.addColorStop(1, "rgba(96, 165, 250, 0)");
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, gradTop, w, (y + glowH) - gradTop);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+            ctx.fillRect(0, y - lineH / 2, w, lineH);
+        }
+
+        function renderLoop() {
+            if (phase !== "scanning") return;
+            if (!sizeCanvases()) {
+                rafId = requestAnimationFrame(renderLoop);
+                return;
+            }
+            const W = displayCanvas.width;
+            const H = displayCanvas.height;
+            const elapsed = performance.now() - scanStart;
+            const progress = Math.min(1, elapsed / durationMs);
+            const currentY = progress * H;
+
+            // 1. Capture the newly-crossed horizontal strip into the frozen canvas.
+            const stripTop = Math.floor(prevY);
+            const stripBottom = Math.floor(currentY);
+            if (stripBottom > stripTop) {
+                // Clip the frozen canvas to the strip region and redraw the full
+                // (possibly mirrored) video frame into it — this keeps the mirror
+                // math simple and only the strip rows end up updated.
+                frozenCtx.save();
+                frozenCtx.beginPath();
+                frozenCtx.rect(0, stripTop, W, stripBottom - stripTop);
+                frozenCtx.clip();
+                drawVideoTo(frozenCtx, W, H);
+                frozenCtx.restore();
+                prevY = currentY;
+            }
+
+            // 2. Compose the display: live video underneath, frozen strip on top.
+            drawVideoTo(displayCtx, W, H);
+            if (currentY > 0) {
+                displayCtx.drawImage(
+                    frozenCanvas,
+                    0, 0, W, Math.ceil(currentY),
+                    0, 0, W, Math.ceil(currentY)
+                );
+            }
+
+            // 3. Scan line accent.
+            if (progress < 1) {
+                drawScanLine(displayCtx, currentY, W);
+            }
+
+            // 4. Status / completion.
+            setStatus(`Scanning\u2026 ${Math.round(progress * 100)}%`);
+            if (progress >= 1) {
+                finishScan();
+                return;
+            }
+            rafId = requestAnimationFrame(renderLoop);
+        }
+
+        function beginScan() {
+            if (!sizeCanvases()) return;
+            const W = displayCanvas.width;
+            const H = displayCanvas.height;
+            frozenCtx.clearRect(0, 0, W, H);
+            displayCtx.clearRect(0, 0, W, H);
+            durationMs = parseFloat(durationInput.value) * 1000;
+            scanMirror = toggleMirror.checked;
+            prevY = 0;
+            scanStart = performance.now();
+            phase = "scanning";
+            actionsEl.classList.remove("visible");
+            rafId = requestAnimationFrame(renderLoop);
+        }
+
+        function finishScan() {
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = null;
+            const W = displayCanvas.width;
+            const H = displayCanvas.height;
+            // Final frame: show only the frozen composite, no live video or line.
+            displayCtx.clearRect(0, 0, W, H);
+            displayCtx.drawImage(frozenCanvas, 0, 0);
+            phase = "finished";
+            setStatus("Scan complete");
+            actionsEl.classList.add("visible");
+        }
+
+        async function openStream(deviceId) {
+            const videoConstraints = deviceId
+                ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+                : { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } };
+            return await navigator.mediaDevices.getUserMedia({
+                video: videoConstraints,
+                audio: false,
+            });
+        }
+
+        function describeCameraError(err) {
+            if (!err) return "Could not start the camera.";
+            if (err.name === "NotAllowedError") return "Camera permission denied. Allow camera access and try again.";
+            if (err.name === "NotFoundError") return "No camera found on this device.";
+            if (err.name === "NotReadableError") return "The camera is already in use by another application.";
+            if (err.name === "OverconstrainedError") return "The selected camera is not available.";
+            return err.message || "Could not start the camera.";
+        }
+
+        async function attachStream(newStream) {
+            stream = newStream;
+            const track = stream.getVideoTracks()[0];
+            currentDeviceId = (track && track.getSettings && track.getSettings().deviceId) || currentDeviceId;
+            video.srcObject = stream;
+            await new Promise((resolve) => {
+                if (video.readyState >= 2) return resolve();
+                video.addEventListener("loadeddata", () => resolve(), { once: true });
+            });
+            sizeCanvases();
+        }
+
+        async function populateCameraList() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const cams = devices.filter((d) => d.kind === "videoinput");
+                cameraSelect.innerHTML = "";
+                cams.forEach((cam, i) => {
+                    const opt = document.createElement("option");
+                    opt.value = cam.deviceId;
+                    opt.textContent = cam.label || `Camera ${i + 1}`;
+                    cameraSelect.appendChild(opt);
+                });
+                if (currentDeviceId) cameraSelect.value = currentDeviceId;
+                cameraField.hidden = cams.length < 2;
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function switchCamera(deviceId) {
+            if (!stream) return;
+            cameraSelect.disabled = true;
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = null;
+            phase = "idle";
+            for (const track of stream.getTracks()) track.stop();
+            stream = null;
+            try {
+                const newStream = await openStream(deviceId);
+                await attachStream(newStream);
+                clearError();
+                beginScan();
+            } catch (err) {
+                console.error(err);
+                showError(describeCameraError(err));
+                stop();
+            } finally {
+                cameraSelect.disabled = false;
+            }
+        }
+
+        function closeMenu() {
+            optionsPanel.classList.remove("open");
+            menuBtn.setAttribute("aria-expanded", "false");
+        }
+
+        async function start() {
+            clearError();
+            startBtn.disabled = true;
+            try {
+                setStatus("Requesting camera\u2026");
+                const newStream = await openStream(currentDeviceId);
+                await attachStream(newStream);
+            } catch (err) {
+                console.error(err);
+                showError(describeCameraError(err));
+                startBtn.disabled = false;
+                setStatus("");
+                return;
+            }
+
+            container.classList.add("running");
+            await populateCameraList();
+            beginScan();
+        }
+
+        function stop() {
+            if (rafId) cancelAnimationFrame(rafId);
+            rafId = null;
+            if (stream) {
+                for (const track of stream.getTracks()) track.stop();
+                stream = null;
+            }
+            video.srcObject = null;
+            displayCtx.clearRect(0, 0, displayCanvas.width, displayCanvas.height);
+            frozenCtx.clearRect(0, 0, frozenCanvas.width, frozenCanvas.height);
+            container.classList.remove("running");
+            actionsEl.classList.remove("visible");
+            closeMenu();
+            startBtn.disabled = false;
+            setStatus("");
+            phase = "idle";
+        }
+
+        function canvasToBlob(canvas) {
+            return new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+        }
+
+        async function onDownload() {
+            const blob = await canvasToBlob(frozenCanvas);
+            if (!blob) return;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `scan-line-${Date.now()}.png`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        async function onShare() {
+            const blob = await canvasToBlob(frozenCanvas);
+            if (!blob) return;
+            const file = new File([blob], `scan-line-${Date.now()}.png`, { type: "image/png" });
+            try {
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({ files: [file], title: "Scan Line" });
+                }
+            } catch (err) {
+                if (err && err.name !== "AbortError") console.error(err);
+            }
+        }
+
+        function detectShareSupport() {
+            try {
+                if (!navigator.canShare) return false;
+                const probe = new File([new Blob([""], { type: "image/png" })], "probe.png", { type: "image/png" });
+                return navigator.canShare({ files: [probe] });
+            } catch (e) {
+                return false;
+            }
+        }
+
+        startBtn.addEventListener("click", start);
+        window.addEventListener("pagehide", stop);
+
+        menuBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const isOpen = optionsPanel.classList.toggle("open");
+            menuBtn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        });
+
+        optionsPanel.addEventListener("click", (e) => {
+            e.stopPropagation();
+        });
+
+        document.addEventListener("click", () => {
+            if (optionsPanel.classList.contains("open")) closeMenu();
+        });
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && optionsPanel.classList.contains("open")) closeMenu();
+        });
+
+        cameraSelect.addEventListener("change", () => {
+            switchCamera(cameraSelect.value);
+        });
+
+        durationInput.addEventListener("input", updateDurationLabel);
+
+        restartBtn.addEventListener("click", () => {
+            if (!stream) return;
+            beginScan();
+        });
+
+        downloadBtn.addEventListener("click", onDownload);
+        shareBtn.addEventListener("click", onShare);
+
+        if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+            navigator.mediaDevices.addEventListener("devicechange", () => {
+                if (stream) populateCameraList();
+            });
+        }
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showError("This browser does not support camera access (getUserMedia).");
+            startBtn.disabled = true;
+        }
+
+        updateDurationLabel();
+        if (detectShareSupport()) {
+            shareBtn.hidden = false;
+        }
+    </script>
+</body>
+</html>
