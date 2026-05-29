@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Road Length in Polygon</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" crossorigin="" />
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f5f5f5;
+            color: #1a1a1a;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        header {
+            padding: 0.85rem 1.25rem;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+            flex-shrink: 0;
+        }
+        header h1 { font-size: 1.15rem; }
+        header p { color: #6b7280; font-size: 0.8rem; margin-top: 0.15rem; }
+        header a.back { color: #2563eb; text-decoration: none; font-size: 0.8rem; font-weight: 600; }
+        header a.back:hover { text-decoration: underline; }
+
+        .layout { flex: 1; display: flex; min-height: 0; }
+        #map { flex: 1; min-width: 0; background: #e5e7eb; }
+
+        .panel {
+            width: 320px;
+            flex-shrink: 0;
+            background: #fff;
+            border-left: 1px solid #e5e7eb;
+            overflow-y: auto;
+            padding: 1rem 1.1rem 2rem;
+        }
+
+        .search-row { display: flex; gap: 0.4rem; margin-bottom: 0.9rem; }
+        .search-row input {
+            flex: 1; min-width: 0;
+            padding: 0.55rem 0.65rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+        .btn {
+            border: none;
+            background: #2563eb;
+            color: #fff;
+            font-weight: 600;
+            font-size: 0.85rem;
+            padding: 0.55rem 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .btn:hover { background: #1d4ed8; }
+        .btn.secondary { background: #f3f4f6; color: #374151; }
+        .btn.secondary:hover { background: #e5e7eb; }
+        .btn:disabled { opacity: 0.5; cursor: default; }
+
+        .hint {
+            font-size: 0.8rem;
+            color: #6b7280;
+            line-height: 1.45;
+            background: #f9fafb;
+            border: 1px solid #f3f4f6;
+            border-radius: 6px;
+            padding: 0.65rem 0.75rem;
+            margin-bottom: 0.9rem;
+        }
+        .hint b { color: #374151; }
+
+        .status { font-size: 0.85rem; margin-bottom: 0.8rem; min-height: 1.1rem; }
+        .status.loading { color: #2563eb; }
+        .status.error { color: #dc2626; }
+        .status.ok { color: #059669; }
+
+        .total {
+            text-align: center;
+            padding: 0.9rem;
+            background: #eff6ff;
+            border: 1px solid #dbeafe;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        .total .num { font-size: 1.9rem; font-weight: 700; color: #1e3a8a; line-height: 1.1; }
+        .total .sub { font-size: 0.85rem; color: #3b82f6; margin-top: 0.2rem; }
+
+        .units { display: flex; gap: 0.4rem; margin-bottom: 1rem; }
+        .units button {
+            flex: 1;
+            padding: 0.4rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border: 1px solid #d1d5db;
+            background: #fff;
+            color: #374151;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .units button.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+
+        .breakdown { display: none; }
+        .breakdown h2 {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #9ca3af;
+            margin-bottom: 0.5rem;
+        }
+        .cat {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            padding: 0.45rem 0;
+            border-bottom: 1px solid #f3f4f6;
+            font-size: 0.85rem;
+            cursor: pointer;
+            user-select: none;
+        }
+        .cat:last-child { border-bottom: none; }
+        .cat input { width: 15px; height: 15px; accent-color: #2563eb; cursor: pointer; }
+        .swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+        .cat .name { flex: 1; }
+        .cat .len { font-variant-numeric: tabular-nums; color: #374151; font-weight: 600; }
+        .cat.off .name, .cat.off .len { color: #c4c8cf; }
+
+        .actions { display: flex; gap: 0.4rem; margin: 1rem 0 0; }
+        .actions .btn { flex: 1; text-align: center; }
+
+        @media (max-width: 760px) {
+            .layout { flex-direction: column; }
+            #map { height: 50vh; flex: none; }
+            .panel { width: 100%; border-left: none; border-top: 1px solid #e5e7eb; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <a class="back" href="index.html">&larr; Tools</a>
+        <h1>Road Length in Polygon</h1>
+        <p>Draw an area on the map to measure the total length of roads inside it (data from OpenStreetMap).</p>
+    </header>
+
+    <div class="layout">
+        <div id="map"></div>
+        <aside class="panel">
+            <div class="search-row">
+                <input id="search" type="text" placeholder="Search a place…" autocomplete="off">
+                <button class="btn" id="searchBtn">Go</button>
+            </div>
+
+            <div class="hint">
+                <b>How to use:</b> Click the polygon tool <b>(▱)</b> top-left of the map, click points to outline an area, then click the first point to close it. Roads inside are measured automatically.
+            </div>
+
+            <div class="status" id="status"></div>
+
+            <div class="total" id="totalBox">
+                <div class="num" id="totalNum">—</div>
+                <div class="sub" id="totalSub">total road length</div>
+            </div>
+
+            <div class="units" id="units" style="display:none;">
+                <button data-unit="km" class="active">Kilometres</button>
+                <button data-unit="mi">Miles</button>
+            </div>
+
+            <div class="breakdown" id="breakdown">
+                <h2>By road type — tap to toggle</h2>
+                <div id="cats"></div>
+            </div>
+
+            <div class="actions" id="actions" style="display:none;">
+                <button class="btn secondary" id="copyBtn">Copy results</button>
+                <button class="btn secondary" id="clearBtn">Clear</button>
+            </div>
+        </aside>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js" crossorigin=""></script>
+    <script>
+    (function () {
+        "use strict";
+
+        // ---- Map setup ------------------------------------------------------
+        var map = L.map("map").setView([51.5074, -0.1278], 14); // London
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+            attribution: "&copy; OpenStreetMap contributors"
+        }).addTo(map);
+
+        var drawnItems = new L.FeatureGroup().addTo(map);
+        var roadLayer = new L.FeatureGroup().addTo(map);
+
+        var drawControl = new L.Control.Draw({
+            position: "topleft",
+            draw: {
+                polygon: {
+                    allowIntersection: false,
+                    showArea: false,
+                    shapeOptions: { color: "#2563eb", weight: 2, fillOpacity: 0.05 }
+                },
+                rectangle: { shapeOptions: { color: "#2563eb", weight: 2, fillOpacity: 0.05 } },
+                marker: false, circle: false, circlemarker: false, polyline: false
+            },
+            edit: { featureGroup: drawnItems, edit: false }
+        });
+        map.addControl(drawControl);
+
+        // ---- Road categories ------------------------------------------------
+        // Order matters: most specific / important first.
+        var CATEGORIES = [
+            { id: "motorway",   label: "Motorway / Trunk", color: "#e11d48",
+              tags: ["motorway","trunk","motorway_link","trunk_link"] },
+            { id: "primary",    label: "Primary",          color: "#f97316",
+              tags: ["primary","primary_link"] },
+            { id: "secondary",  label: "Secondary",        color: "#eab308",
+              tags: ["secondary","secondary_link"] },
+            { id: "tertiary",   label: "Tertiary",         color: "#84cc16",
+              tags: ["tertiary","tertiary_link"] },
+            { id: "residential",label: "Residential",      color: "#3b82f6",
+              tags: ["residential","living_street","unclassified"] },
+            { id: "service",    label: "Service / Parking", color: "#8b5cf6",
+              tags: ["service"] },
+            { id: "track",      label: "Track",            color: "#a16207",
+              tags: ["track"] },
+            { id: "path",       label: "Path / Foot / Cycle", color: "#14b8a6",
+              tags: ["footway","path","pedestrian","steps","cycleway","bridleway","corridor"] },
+            { id: "other",      label: "Other",            color: "#6b7280", tags: [] }
+        ];
+        var TAG_TO_CAT = {};
+        CATEGORIES.forEach(function (c) { c.tags.forEach(function (t) { TAG_TO_CAT[t] = c.id; }); });
+        function catFor(hwy) { return TAG_TO_CAT[hwy] || "other"; }
+
+        // ---- DOM refs -------------------------------------------------------
+        var statusEl = document.getElementById("status");
+        var totalBox = document.getElementById("totalBox");
+        var totalNum = document.getElementById("totalNum");
+        var unitsEl = document.getElementById("units");
+        var breakdownEl = document.getElementById("breakdown");
+        var catsEl = document.getElementById("cats");
+        var actionsEl = document.getElementById("actions");
+
+        var currentUnit = "km";
+        var lastResult = null;   // { categories: {id: {meters, layer}}, polygon }
+
+        function setStatus(msg, cls) {
+            statusEl.textContent = msg || "";
+            statusEl.className = "status" + (cls ? " " + cls : "");
+        }
+
+        // ---- Geometry helpers ----------------------------------------------
+        function haversine(a, b) {
+            var R = 6371000;
+            var dLat = (b[0] - a[0]) * Math.PI / 180;
+            var dLon = (b[1] - a[1]) * Math.PI / 180;
+            var la1 = a[0] * Math.PI / 180, la2 = b[0] * Math.PI / 180;
+            var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return 2 * R * Math.asin(Math.sqrt(h));
+        }
+
+        // pt and poly use [lat, lng]; poly is an array of vertices (open ring).
+        function pointInPolygon(pt, poly) {
+            var x = pt[1], y = pt[0], inside = false;
+            for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+                var xi = poly[i][1], yi = poly[i][0];
+                var xj = poly[j][1], yj = poly[j][0];
+                var intersect = ((yi > y) !== (yj > y)) &&
+                    (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            return inside;
+        }
+
+        // Parameter t in [0,1] where segment a->b crosses edge p->q, or null.
+        function segCrossT(a, b, p, q) {
+            var rx = b[1] - a[1], ry = b[0] - a[0];
+            var sx = q[1] - p[1], sy = q[0] - p[0];
+            var denom = rx * sy - ry * sx;
+            if (denom === 0) return null;
+            var qpx = p[1] - a[1], qpy = p[0] - a[0];
+            var t = (qpx * sy - qpy * sx) / denom;
+            var u = (qpx * ry - qpy * rx) / denom;
+            if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return t;
+            return null;
+        }
+
+        function lerp(a, b, t) {
+            return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+        }
+
+        // Returns the portions of segment a->b that lie inside poly,
+        // as an array of [start, end] coordinate pairs, plus total length.
+        function clipSegment(a, b, poly) {
+            var ts = [0, 1];
+            for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+                var t = segCrossT(a, b, poly[j], poly[i]);
+                if (t !== null) ts.push(t);
+            }
+            ts.sort(function (x, y) { return x - y; });
+
+            var pieces = [], length = 0;
+            for (var k = 0; k < ts.length - 1; k++) {
+                var t0 = ts[k], t1 = ts[k + 1];
+                if (t1 - t0 < 1e-9) continue;
+                var mid = lerp(a, b, (t0 + t1) / 2);
+                if (pointInPolygon(mid, poly)) {
+                    var p0 = lerp(a, b, t0), p1 = lerp(a, b, t1);
+                    pieces.push([p0, p1]);
+                    length += haversine(p0, p1);
+                }
+            }
+            return { pieces: pieces, length: length };
+        }
+
+        // ---- Overpass query -------------------------------------------------
+        var OVERPASS_ENDPOINTS = [
+            "https://overpass-api.de/api/interpreter",
+            "https://overpass.kumi.systems/api/interpreter"
+        ];
+
+        function polyToOverpass(latlngs) {
+            return latlngs.map(function (p) { return p.lat + " " + p.lng; }).join(" ");
+        }
+
+        function buildQuery(polyStr) {
+            return "[out:json][timeout:90];" +
+                   "way[\"highway\"](poly:\"" + polyStr + "\");" +
+                   "out geom;";
+        }
+
+        function fetchRoads(query) {
+            var body = "data=" + encodeURIComponent(query);
+            function tryEndpoint(i) {
+                if (i >= OVERPASS_ENDPOINTS.length) {
+                    return Promise.reject(new Error("All Overpass servers failed or are busy. Try again in a moment."));
+                }
+                return fetch(OVERPASS_ENDPOINTS[i], { method: "POST", body: body })
+                    .then(function (r) {
+                        if (!r.ok) throw new Error("HTTP " + r.status);
+                        return r.json();
+                    })
+                    .catch(function () { return tryEndpoint(i + 1); });
+            }
+            return tryEndpoint(0);
+        }
+
+        // ---- Main flow ------------------------------------------------------
+        function processPolygon(layer) {
+            var ring = layer.getLatLngs()[0];
+            if (!ring || ring.length < 3) return;
+            var poly = ring.map(function (p) { return [p.lat, p.lng]; });
+
+            // Rough area check (planar approximation, km²) to warn on huge areas.
+            var areaKm2 = approxAreaKm2(poly);
+            if (areaKm2 > 250) {
+                setStatus("Area is large (~" + Math.round(areaKm2) + " km²); the query may be slow or time out…", "loading");
+            } else {
+                setStatus("Fetching roads from OpenStreetMap…", "loading");
+            }
+
+            roadLayer.clearLayers();
+            totalBox.style.display = "none";
+            breakdownEl.style.display = "none";
+
+            fetchRoads(buildQuery(polyToOverpass(ring)))
+                .then(function (data) {
+                    var result = measure(data.elements || [], poly);
+                    lastResult = result;
+                    render(result);
+                })
+                .catch(function (err) {
+                    setStatus(err.message || "Failed to fetch road data.", "error");
+                });
+        }
+
+        function approxAreaKm2(poly) {
+            // Shoelace on equirectangular projection around polygon centroid.
+            var latMean = 0;
+            poly.forEach(function (p) { latMean += p[0]; });
+            latMean = latMean / poly.length * Math.PI / 180;
+            var R = 6371, sum = 0;
+            for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+                var xi = poly[i][1] * Math.PI / 180 * Math.cos(latMean) * R;
+                var yi = poly[i][0] * Math.PI / 180 * R;
+                var xj = poly[j][1] * Math.PI / 180 * Math.cos(latMean) * R;
+                var yj = poly[j][0] * Math.PI / 180 * R;
+                sum += xj * yi - xi * yj;
+            }
+            return Math.abs(sum) / 2;
+        }
+
+        function measure(elements, poly) {
+            var cats = {};
+            CATEGORIES.forEach(function (c) {
+                cats[c.id] = { meters: 0, lines: [], color: c.color, label: c.label };
+            });
+
+            elements.forEach(function (el) {
+                if (el.type !== "way" || !el.geometry || !el.tags) return;
+                var catId = catFor(el.tags.highway);
+                var geom = el.geometry;
+                for (var i = 0; i < geom.length - 1; i++) {
+                    var a = [geom[i].lat, geom[i].lon];
+                    var b = [geom[i + 1].lat, geom[i + 1].lon];
+                    var clipped = clipSegment(a, b, poly);
+                    if (clipped.length > 0) {
+                        cats[catId].meters += clipped.length;
+                        clipped.pieces.forEach(function (pc) { cats[catId].lines.push(pc); });
+                    }
+                }
+            });
+            return { cats: cats, poly: poly };
+        }
+
+        // ---- Rendering ------------------------------------------------------
+        function fmt(meters) {
+            if (currentUnit === "km") {
+                var km = meters / 1000;
+                return (km >= 100 ? km.toFixed(0) : km >= 10 ? km.toFixed(1) : km.toFixed(2)) + " km";
+            }
+            var mi = meters / 1609.344;
+            return (mi >= 100 ? mi.toFixed(0) : mi >= 10 ? mi.toFixed(1) : mi.toFixed(2)) + " mi";
+        }
+
+        function enabledTotal(result) {
+            var total = 0;
+            CATEGORIES.forEach(function (c) {
+                var cb = document.getElementById("cat-" + c.id);
+                if (cb && cb.checked) total += result.cats[c.id].meters;
+            });
+            return total;
+        }
+
+        function redrawRoads(result) {
+            roadLayer.clearLayers();
+            CATEGORIES.forEach(function (c) {
+                var cb = document.getElementById("cat-" + c.id);
+                if (!cb || !cb.checked) return;
+                var data = result.cats[c.id];
+                data.lines.forEach(function (pc) {
+                    L.polyline(pc, { color: c.color, weight: 3, opacity: 0.9 }).addTo(roadLayer);
+                });
+            });
+        }
+
+        function updateTotals() {
+            if (!lastResult) return;
+            var total = enabledTotal(lastResult);
+            totalNum.textContent = fmt(total);
+            CATEGORIES.forEach(function (c) {
+                var lenEl = document.getElementById("len-" + c.id);
+                if (lenEl) lenEl.textContent = fmt(lastResult.cats[c.id].meters);
+            });
+        }
+
+        function render(result) {
+            // Build breakdown rows.
+            catsEl.innerHTML = "";
+            var any = false;
+            CATEGORIES.forEach(function (c) {
+                var data = result.cats[c.id];
+                if (data.meters <= 0) return;
+                any = true;
+                var row = document.createElement("label");
+                row.className = "cat";
+                row.innerHTML =
+                    '<input type="checkbox" id="cat-' + c.id + '" checked>' +
+                    '<span class="swatch" style="background:' + c.color + '"></span>' +
+                    '<span class="name">' + c.label + '</span>' +
+                    '<span class="len" id="len-' + c.id + '">' + fmt(data.meters) + '</span>';
+                catsEl.appendChild(row);
+                row.querySelector("input").addEventListener("change", function () {
+                    row.classList.toggle("off", !this.checked);
+                    redrawRoads(result);
+                    updateTotals();
+                });
+            });
+
+            if (!any) {
+                setStatus("No roads found in this area.", "ok");
+                totalBox.style.display = "none";
+                breakdownEl.style.display = "none";
+                actionsEl.style.display = "none";
+                roadLayer.clearLayers();
+                return;
+            }
+
+            setStatus("Done. Roads inside the area are highlighted.", "ok");
+            totalBox.style.display = "block";
+            unitsEl.style.display = "flex";
+            breakdownEl.style.display = "block";
+            actionsEl.style.display = "flex";
+            redrawRoads(result);
+            updateTotals();
+        }
+
+        // ---- Events ---------------------------------------------------------
+        map.on(L.Draw.Event.CREATED, function (e) {
+            drawnItems.clearLayers();
+            drawnItems.addLayer(e.layer);
+            processPolygon(e.layer);
+        });
+
+        document.querySelectorAll("#units button").forEach(function (b) {
+            b.addEventListener("click", function () {
+                currentUnit = this.dataset.unit;
+                document.querySelectorAll("#units button").forEach(function (x) {
+                    x.classList.toggle("active", x === b);
+                });
+                updateTotals();
+            });
+        });
+
+        document.getElementById("clearBtn").addEventListener("click", function () {
+            drawnItems.clearLayers();
+            roadLayer.clearLayers();
+            lastResult = null;
+            totalBox.style.display = "none";
+            unitsEl.style.display = "none";
+            breakdownEl.style.display = "none";
+            actionsEl.style.display = "none";
+            setStatus("");
+        });
+
+        document.getElementById("copyBtn").addEventListener("click", function () {
+            if (!lastResult) return;
+            var lines = ["Road length within drawn area:"];
+            CATEGORIES.forEach(function (c) {
+                var cb = document.getElementById("cat-" + c.id);
+                var data = lastResult.cats[c.id];
+                if (data.meters > 0 && cb && cb.checked) {
+                    lines.push("  " + c.label + ": " + fmt(data.meters));
+                }
+            });
+            lines.push("Total: " + fmt(enabledTotal(lastResult)));
+            navigator.clipboard.writeText(lines.join("\n")).then(function () {
+                var btn = document.getElementById("copyBtn");
+                var orig = btn.textContent;
+                btn.textContent = "Copied!";
+                setTimeout(function () { btn.textContent = orig; }, 1500);
+            });
+        });
+
+        // ---- Place search (Nominatim) --------------------------------------
+        function doSearch() {
+            var q = document.getElementById("search").value.trim();
+            if (!q) return;
+            setStatus("Searching…", "loading");
+            fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(q),
+                  { headers: { "Accept": "application/json" } })
+                .then(function (r) { return r.json(); })
+                .then(function (results) {
+                    if (!results.length) { setStatus("Place not found.", "error"); return; }
+                    var r0 = results[0];
+                    if (r0.boundingbox) {
+                        var bb = r0.boundingbox;
+                        map.fitBounds([[+bb[0], +bb[2]], [+bb[1], +bb[3]]]);
+                    } else {
+                        map.setView([+r0.lat, +r0.lon], 15);
+                    }
+                    setStatus("Now draw a polygon over the area.", "");
+                })
+                .catch(function () { setStatus("Search failed.", "error"); });
+        }
+        document.getElementById("searchBtn").addEventListener("click", doSearch);
+        document.getElementById("search").addEventListener("keydown", function (e) {
+            if (e.key === "Enter") doSearch();
+        });
+    })();
+    </script>
+</body>
+</html>
