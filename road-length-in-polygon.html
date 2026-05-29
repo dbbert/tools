@@ -137,6 +137,27 @@
         .actions { display: flex; gap: 0.4rem; margin: 1rem 0 0; }
         .actions .btn { flex: 1; text-align: center; }
 
+        .btn.route { width: 100%; margin-top: 0.6rem; text-align: center; }
+        .route-box {
+            display: none;
+            margin-top: 0.8rem;
+            padding: 0.9rem;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .route-box .route-num { font-size: 1.6rem; font-weight: 700; color: #991b1b; line-height: 1.1; }
+        .route-box .route-sub { font-size: 0.8rem; color: #b91c1c; margin-top: 0.15rem; }
+        .route-box .route-detail {
+            margin-top: 0.6rem;
+            font-size: 0.78rem;
+            color: #6b7280;
+            line-height: 1.45;
+            text-align: left;
+        }
+        .route-box .route-detail div { margin-bottom: 0.25rem; }
+
         @media (max-width: 760px) {
             html, body { height: auto; }
             body { height: auto; min-height: 100vh; overflow: visible; }
@@ -186,6 +207,14 @@
                 <button class="btn secondary" id="copyBtn">Copy results</button>
                 <button class="btn secondary" id="clearBtn">Clear</button>
             </div>
+
+            <button class="btn route" id="routeBtn" style="display:none;">Find shortest route covering all roads</button>
+
+            <div class="route-box" id="routeBox">
+                <div class="route-num" id="routeNum">—</div>
+                <div class="route-sub">round-trip covering every selected road</div>
+                <div class="route-detail" id="routeDetail"></div>
+            </div>
         </aside>
     </div>
 
@@ -205,6 +234,7 @@
 
         var drawnItems = new L.FeatureGroup().addTo(map);
         var roadLayer = new L.FeatureGroup().addTo(map);
+        var routeLayer = new L.FeatureGroup().addTo(map);
 
         var drawControl = new L.Control.Draw({
             position: "topleft",
@@ -268,9 +298,14 @@
         var breakdownEl = document.getElementById("breakdown");
         var catsEl = document.getElementById("cats");
         var actionsEl = document.getElementById("actions");
+        var routeBtn = document.getElementById("routeBtn");
+        var routeBox = document.getElementById("routeBox");
+        var routeNum = document.getElementById("routeNum");
+        var routeDetail = document.getElementById("routeDetail");
 
         var currentUnit = "km";
         var lastResult = null;   // { categories: {id: {meters, layer}}, polygon }
+        var lastRoute = null;    // { total, network, extra, coverage, comps }
 
         function setStatus(msg, cls) {
             statusEl.textContent = msg || "";
@@ -483,6 +518,210 @@
             });
         }
 
+        // ---- Route inspection (approximate Chinese Postman) -----------------
+        // A binary min-heap of (key, value) pairs for Dijkstra.
+        function MinHeap() { this.k = []; this.v = []; }
+        MinHeap.prototype.size = function () { return this.k.length; };
+        MinHeap.prototype.push = function (key, val) {
+            var k = this.k, v = this.v, i = k.length;
+            k.push(key); v.push(val);
+            while (i > 0) {
+                var p = (i - 1) >> 1;
+                if (k[p] <= k[i]) break;
+                var tk = k[p]; k[p] = k[i]; k[i] = tk;
+                var tv = v[p]; v[p] = v[i]; v[i] = tv;
+                i = p;
+            }
+        };
+        MinHeap.prototype.pop = function () {
+            var k = this.k, v = this.v, top = { key: k[0], val: v[0] }, last = k.length - 1;
+            k[0] = k[last]; v[0] = v[last]; k.pop(); v.pop();
+            var n = k.length, i = 0;
+            while (true) {
+                var l = 2 * i + 1, r = 2 * i + 2, s = i;
+                if (l < n && k[l] < k[s]) s = l;
+                if (r < n && k[r] < k[s]) s = r;
+                if (s === i) break;
+                var tk = k[s]; k[s] = k[i]; k[i] = tk;
+                var tv = v[s]; v[s] = v[i]; v[i] = tv;
+                i = s;
+            }
+            return top;
+        };
+
+        function dijkstra(adj, src) {
+            var n = adj.length;
+            var dist = new Float64Array(n), prevNode = new Int32Array(n), prevEdge = new Int32Array(n);
+            dist.fill(Infinity); prevNode.fill(-1); prevEdge.fill(-1);
+            dist[src] = 0;
+            var heap = new MinHeap();
+            heap.push(0, src);
+            while (heap.size()) {
+                var top = heap.pop(), d = top.key, u = top.val;
+                if (d > dist[u]) continue;
+                var nb = adj[u];
+                for (var i = 0; i < nb.length; i++) {
+                    var e = nb[i], nd = d + e.w;
+                    if (nd < dist[e.to]) {
+                        dist[e.to] = nd; prevNode[e.to] = u; prevEdge[e.to] = e.edge;
+                        heap.push(nd, e.to);
+                    }
+                }
+            }
+            return { dist: dist, prevNode: prevNode, prevEdge: prevEdge };
+        }
+
+        // Build an undirected graph from the clipped segments of enabled
+        // categories. Nodes are keyed by rounded coordinates, so shared OSM
+        // nodes (intersections, shape points) merge automatically.
+        function buildRouteGraph() {
+            var nodeMap = {}, nodeCoord = [], adj = [], edges = [];
+            function nodeId(p) {
+                var key = p[0].toFixed(7) + "," + p[1].toFixed(7);
+                var id = nodeMap[key];
+                if (id === undefined) {
+                    id = nodeCoord.length; nodeMap[key] = id; nodeCoord.push(p); adj.push([]);
+                }
+                return id;
+            }
+            CATEGORIES.forEach(function (c) {
+                var cb = document.getElementById("cat-" + c.id);
+                if (cb && !cb.checked) return;
+                var data = lastResult.cats[c.id];
+                if (!data) return;
+                data.lines.forEach(function (pc) {
+                    var w = haversine(pc[0], pc[1]);
+                    if (!(w > 0)) return;
+                    var u = nodeId(pc[0]), v = nodeId(pc[1]);
+                    if (u === v) return;
+                    var eid = edges.length;
+                    edges.push({ u: u, v: v, w: w, p0: pc[0], p1: pc[1] });
+                    adj[u].push({ to: v, w: w, edge: eid });
+                    adj[v].push({ to: u, w: w, edge: eid });
+                });
+            });
+            return { adj: adj, edges: edges, nodeCoord: nodeCoord };
+        }
+
+        function connectedComponents(adj) {
+            var n = adj.length, comp = new Int32Array(n), c = 0;
+            comp.fill(-1);
+            for (var s = 0; s < n; s++) {
+                if (comp[s] !== -1) continue;
+                comp[s] = c;
+                var stack = [s];
+                while (stack.length) {
+                    var u = stack.pop(), nb = adj[u];
+                    for (var i = 0; i < nb.length; i++) {
+                        if (comp[nb[i].to] === -1) { comp[nb[i].to] = c; stack.push(nb[i].to); }
+                    }
+                }
+                c++;
+            }
+            return { comp: comp, count: c };
+        }
+
+        function computeRoute() {
+            var g = buildRouteGraph();
+            routeLayer.clearLayers();
+            if (g.edges.length === 0) {
+                setStatus("Enable at least one road type to route.", "error");
+                routeBox.style.display = "none";
+                lastRoute = null;
+                return;
+            }
+
+            var cc = connectedComponents(g.adj);
+            var compLen = new Float64Array(cc.count), totalLen = 0;
+            g.edges.forEach(function (e) { compLen[cc.comp[e.u]] += e.w; totalLen += e.w; });
+            var best = 0;
+            for (var i = 1; i < cc.count; i++) if (compLen[i] > compLen[best]) best = i;
+
+            // Odd-degree vertices in the chosen component.
+            var odd = [], firstNode = -1;
+            for (var v = 0; v < g.adj.length; v++) {
+                if (cc.comp[v] !== best) continue;
+                if (firstNode === -1) firstNode = v;
+                if (g.adj[v].length % 2 === 1) odd.push(v);
+            }
+
+            var networkLen = compLen[best], extra = 0, retraced = [];
+            if (odd.length > 0) {
+                var k = odd.length;
+                // Shortest-path distances between every pair of odd vertices.
+                var dmat = [];
+                for (var a = 0; a < k; a++) {
+                    var res = dijkstra(g.adj, odd[a]);
+                    var row = new Float64Array(k);
+                    for (var b = 0; b < k; b++) row[b] = res.dist[odd[b]];
+                    dmat.push(row);
+                }
+                // Greedy minimum-weight matching: take the cheapest valid pair first.
+                var pairs = [];
+                for (var a2 = 0; a2 < k; a2++) {
+                    for (var b2 = a2 + 1; b2 < k; b2++) pairs.push([dmat[a2][b2], a2, b2]);
+                }
+                pairs.sort(function (x, y) { return x[0] - y[0]; });
+                var used = new Uint8Array(k), matches = [], cnt = 0;
+                for (var pi = 0; pi < pairs.length && cnt < k; pi++) {
+                    var pr = pairs[pi];
+                    if (used[pr[1]] || used[pr[2]]) continue;
+                    used[pr[1]] = 1; used[pr[2]] = 1;
+                    matches.push([odd[pr[1]], odd[pr[2]]]);
+                    extra += pr[0]; cnt += 2;
+                }
+                // Reconstruct the retraced paths for the matched pairs.
+                matches.forEach(function (m) {
+                    var r = dijkstra(g.adj, m[0]), cur = m[1];
+                    while (cur !== m[0] && r.prevNode[cur] !== -1) {
+                        var e = g.edges[r.prevEdge[cur]];
+                        retraced.push([e.p0, e.p1]);
+                        cur = r.prevNode[cur];
+                    }
+                });
+            }
+
+            // Draw: retraced (twice-travelled) segments dashed in red, plus a
+            // start/end marker for the round trip.
+            retraced.forEach(function (seg) {
+                L.polyline(seg, { color: "#dc2626", weight: 5, opacity: 0.85,
+                                  dashArray: "1 9", lineCap: "round" }).addTo(routeLayer);
+            });
+            if (firstNode !== -1) {
+                L.circleMarker(g.nodeCoord[firstNode], {
+                    radius: 6, color: "#16a34a", weight: 2, fillColor: "#22c55e", fillOpacity: 1
+                }).addTo(routeLayer).bindTooltip("Start / end of round trip");
+            }
+
+            lastRoute = {
+                total: networkLen + extra, network: networkLen, extra: extra,
+                coverage: totalLen > 0 ? networkLen / totalLen : 1, comps: cc.count
+            };
+            renderRoute();
+        }
+
+        function renderRoute() {
+            if (!lastRoute) return;
+            routeNum.textContent = fmt(lastRoute.total);
+            var pct = lastRoute.network > 0 ? Math.round(lastRoute.extra / lastRoute.network * 100) : 0;
+            var d = ["Covers " + fmt(lastRoute.network) + " of road and retraces " +
+                     fmt(lastRoute.extra) + " (" + pct + "% extra backtracking)."];
+            if (lastRoute.comps > 1) {
+                d.push("The selection splits into " + lastRoute.comps + " disconnected groups; " +
+                       "this routes the largest, covering " + Math.round(lastRoute.coverage * 100) +
+                       "% of the selected road length.");
+            }
+            d.push("Approximate: round trip returning to start, one-way streets ignored, greedy matching.");
+            routeDetail.innerHTML = d.map(function (s) { return "<div>" + s + "</div>"; }).join("");
+            routeBox.style.display = "block";
+        }
+
+        function clearRoute() {
+            routeLayer.clearLayers();
+            routeBox.style.display = "none";
+            lastRoute = null;
+        }
+
         function render(result) {
             // Build breakdown rows.
             catsEl.innerHTML = "";
@@ -504,14 +743,17 @@
                     row.classList.toggle("off", !this.checked);
                     redrawRoads(result);
                     updateTotals();
+                    clearRoute(); // the network changed, so any route is stale
                 });
             });
 
+            clearRoute(); // new data invalidates any previous route
             if (!any) {
                 setStatus("No roads found in this area.", "ok");
                 totalBox.style.display = "none";
                 breakdownEl.style.display = "none";
                 actionsEl.style.display = "none";
+                routeBtn.style.display = "none";
                 roadLayer.clearLayers();
                 return;
             }
@@ -521,6 +763,7 @@
             unitsEl.style.display = "flex";
             breakdownEl.style.display = "block";
             actionsEl.style.display = "flex";
+            routeBtn.style.display = "block";
             redrawRoads(result);
             updateTotals();
         }
@@ -539,17 +782,38 @@
                     x.classList.toggle("active", x === b);
                 });
                 updateTotals();
+                renderRoute(); // refresh route figures in the new unit
             });
+        });
+
+        routeBtn.addEventListener("click", function () {
+            if (!lastResult) return;
+            setStatus("Computing route… (this can take a moment for dense areas)", "loading");
+            routeBtn.disabled = true;
+            // Yield so the status paints before the synchronous compute runs.
+            setTimeout(function () {
+                try {
+                    computeRoute();
+                    if (lastRoute) {
+                        setStatus("Shortest covering route found — retraced parts are dashed red.", "ok");
+                    }
+                } catch (err) {
+                    setStatus("Could not compute route: " + (err.message || err), "error");
+                }
+                routeBtn.disabled = false;
+            }, 30);
         });
 
         document.getElementById("clearBtn").addEventListener("click", function () {
             drawnItems.clearLayers();
             roadLayer.clearLayers();
+            clearRoute();
             lastResult = null;
             totalBox.style.display = "none";
             unitsEl.style.display = "none";
             breakdownEl.style.display = "none";
             actionsEl.style.display = "none";
+            routeBtn.style.display = "none";
             setStatus("");
         });
 
@@ -564,6 +828,11 @@
                 }
             });
             lines.push("Total: " + fmt(enabledTotal(lastResult)));
+            if (lastRoute) {
+                lines.push("");
+                lines.push("Shortest covering route (approx): " + fmt(lastRoute.total));
+                lines.push("  covered: " + fmt(lastRoute.network) + ", retraced: " + fmt(lastRoute.extra));
+            }
             navigator.clipboard.writeText(lines.join("\n")).then(function () {
                 var btn = document.getElementById("copyBtn");
                 var orig = btn.textContent;
