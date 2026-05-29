@@ -138,9 +138,11 @@
         .actions .btn { flex: 1; text-align: center; }
 
         @media (max-width: 760px) {
-            .layout { flex-direction: column; }
-            #map { height: 50vh; flex: none; }
-            .panel { width: 100%; border-left: none; border-top: 1px solid #e5e7eb; }
+            html, body { height: auto; }
+            body { height: auto; min-height: 100vh; overflow: visible; }
+            .layout { flex-direction: column; flex: none; min-height: 0; }
+            #map { height: 60vh; flex: none; }
+            .panel { width: 100%; border-left: none; border-top: 1px solid #e5e7eb; overflow-y: visible; }
         }
     </style>
 </head>
