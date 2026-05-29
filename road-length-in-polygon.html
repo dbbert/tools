@@ -342,25 +342,6 @@
             return { pieces: pieces, length: length };
         }
 
-        // Build a lat/lng -> local metres projector centred on the polygon, so
-        // we can reason about distances between roads and footways in metres.
-        function makeProjector(poly) {
-            var latSum = 0;
-            poly.forEach(function (p) { latSum += p[0]; });
-            var lat0 = (latSum / poly.length) * Math.PI / 180;
-            var mPerLat = 111320, mPerLon = 111320 * Math.cos(lat0);
-            return function (lat, lon) { return [lon * mPerLon, lat * mPerLat]; };
-        }
-
-        // Distance (metres) from projected point (px,py) to segment (ax,ay)-(bx,by).
-        function pointSegDist(px, py, ax, ay, bx, by) {
-            var dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
-            var t = l2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0;
-            t = t < 0 ? 0 : t > 1 ? 1 : t;
-            var ex = px - (ax + t * dx), ey = py - (ay + t * dy);
-            return Math.sqrt(ex * ex + ey * ey);
-        }
-
         // ---- Overpass query -------------------------------------------------
         var OVERPASS_ENDPOINTS = [
             "https://overpass-api.de/api/interpreter",
@@ -438,98 +419,16 @@
             return Math.abs(sum) / 2;
         }
 
-        // Roads whose centreline a footway/cycleway might be duplicating, and
-        // tuning for the geometric "is this a sidepath?" test.
-        var ROAD_REF = { motorway: 1, primary: 1, secondary: 1, tertiary: 1, residential: 1, service: 1 };
-        var SIDEPATH_DIST = 18;     // metres: how close counts as "alongside"
-        var SIDEPATH_FRACTION = 0.6; // share of a path that must run alongside a road
-        var GRID_CELL = 20;          // metres; must be >= SIDEPATH_DIST
-
         function measure(elements, poly) {
             var cats = {};
             CATEGORIES.forEach(function (c) {
                 cats[c.id] = { meters: 0, lines: [], color: c.color, label: c.label };
             });
 
-            var project = makeProjector(poly);
-
-            // Pass 1: tag-based category + projected geometry for every way.
-            var ways = [];
             elements.forEach(function (el) {
-                if (el.type !== "way" || !el.geometry || el.geometry.length < 2 || !el.tags) return;
-                ways.push({
-                    tags: el.tags,
-                    geom: el.geometry,
-                    pts: el.geometry.map(function (g) { return project(g.lat, g.lon); }),
-                    catId: catFor(el.tags)
-                });
-            });
-
-            // Pass 2: index road centrelines into a spatial grid so we can quickly
-            // ask whether a given point lies within SIDEPATH_DIST of any road.
-            var grid = {};
-            function addSeg(seg) {
-                var minx = Math.min(seg[0], seg[2]), maxx = Math.max(seg[0], seg[2]);
-                var miny = Math.min(seg[1], seg[3]), maxy = Math.max(seg[1], seg[3]);
-                for (var ix = Math.floor(minx / GRID_CELL); ix <= Math.floor(maxx / GRID_CELL); ix++) {
-                    for (var iy = Math.floor(miny / GRID_CELL); iy <= Math.floor(maxy / GRID_CELL); iy++) {
-                        var k = ix + "," + iy;
-                        (grid[k] || (grid[k] = [])).push(seg);
-                    }
-                }
-            }
-            ways.forEach(function (w) {
-                if (!ROAD_REF[w.catId]) return;
-                for (var i = 0; i < w.pts.length - 1; i++) {
-                    addSeg([w.pts[i][0], w.pts[i][1], w.pts[i + 1][0], w.pts[i + 1][1]]);
-                }
-            });
-            var hasRoads = false;
-            for (var gk in grid) { if (grid.hasOwnProperty(gk)) { hasRoads = true; break; } }
-
-            function nearRoad(x, y) {
-                var ix = Math.floor(x / GRID_CELL), iy = Math.floor(y / GRID_CELL);
-                for (var gx = ix - 1; gx <= ix + 1; gx++) {
-                    for (var gy = iy - 1; gy <= iy + 1; gy++) {
-                        var arr = grid[gx + "," + gy];
-                        if (!arr) continue;
-                        for (var s = 0; s < arr.length; s++) {
-                            if (pointSegDist(x, y, arr[s][0], arr[s][1], arr[s][2], arr[s][3]) <= SIDEPATH_DIST) {
-                                return true;
-                            }
-                        }
-                    }
-                }
-                return false;
-            }
-
-            // Pass 3: reclassify untagged sidepaths. A footway/cycleway/path that
-            // runs alongside a road for most of its length is a duplicate of that
-            // road's centreline, so move it to the (default-off) sidewalk bucket.
-            if (hasRoads) {
-                ways.forEach(function (w) {
-                    if (w.catId !== "path" || !SIDEPATH_HWY[w.tags.highway]) return;
-                    var near = 0, total = 0;
-                    for (var i = 0; i < w.pts.length - 1; i++) {
-                        var ax = w.pts[i][0], ay = w.pts[i][1];
-                        var bx = w.pts[i + 1][0], by = w.pts[i + 1][1];
-                        var n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 10));
-                        for (var k = 0; k < n; k++) {
-                            var t = k / n;
-                            total++;
-                            if (nearRoad(ax + (bx - ax) * t, ay + (by - ay) * t)) near++;
-                        }
-                    }
-                    var last = w.pts[w.pts.length - 1];
-                    total++;
-                    if (nearRoad(last[0], last[1])) near++;
-                    if (total > 0 && near / total >= SIDEPATH_FRACTION) w.catId = "sidewalk";
-                });
-            }
-
-            // Pass 4: clip each way to the polygon and accumulate by category.
-            ways.forEach(function (w) {
-                var geom = w.geom, catId = w.catId;
+                if (el.type !== "way" || !el.geometry || !el.tags) return;
+                var catId = catFor(el.tags);
+                var geom = el.geometry;
                 for (var i = 0; i < geom.length - 1; i++) {
                     var a = [geom[i].lat, geom[i].lon];
                     var b = [geom[i + 1].lat, geom[i + 1].lon];
