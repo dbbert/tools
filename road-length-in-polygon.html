@@ -240,11 +240,24 @@
               tags: ["track"] },
             { id: "path",       label: "Path / Foot / Cycle", color: "#14b8a6",
               tags: ["footway","path","pedestrian","steps","cycleway","bridleway","corridor"] },
+            { id: "sidewalk",   label: "Sidewalks / Crossings", color: "#94a3b8", defaultOff: true,
+              tags: [] },
             { id: "other",      label: "Other",            color: "#6b7280", tags: [] }
         ];
         var TAG_TO_CAT = {};
         CATEGORIES.forEach(function (c) { c.tags.forEach(function (t) { TAG_TO_CAT[t] = c.id; }); });
-        function catFor(hwy) { return TAG_TO_CAT[hwy] || "other"; }
+        // Sidewalks and crossings are tagged as footways that run parallel to a
+        // road whose centreline is already counted, so route them to their own
+        // (default-off) category to avoid counting the same street 2-3 times.
+        var SIDEWALK_FOOTWAY = { sidewalk: 1, crossing: 1, traffic_island: 1, access_aisle: 1 };
+        function catFor(tags) {
+            var hwy = tags.highway;
+            if ((hwy === "footway" || hwy === "path" || hwy === "cycleway") &&
+                SIDEWALK_FOOTWAY[tags.footway]) {
+                return "sidewalk";
+            }
+            return TAG_TO_CAT[hwy] || "other";
+        }
 
         // ---- DOM refs -------------------------------------------------------
         var statusEl = document.getElementById("status");
@@ -413,7 +426,7 @@
 
             elements.forEach(function (el) {
                 if (el.type !== "way" || !el.geometry || !el.tags) return;
-                var catId = catFor(el.tags.highway);
+                var catId = catFor(el.tags);
                 var geom = el.geometry;
                 for (var i = 0; i < geom.length - 1; i++) {
                     var a = [geom[i].lat, geom[i].lon];
@@ -477,10 +490,11 @@
                 var data = result.cats[c.id];
                 if (data.meters <= 0) return;
                 any = true;
+                var on = !c.defaultOff;
                 var row = document.createElement("label");
-                row.className = "cat";
+                row.className = "cat" + (on ? "" : " off");
                 row.innerHTML =
-                    '<input type="checkbox" id="cat-' + c.id + '" checked>' +
+                    '<input type="checkbox" id="cat-' + c.id + '"' + (on ? " checked" : "") + '>' +
                     '<span class="swatch" style="background:' + c.color + '"></span>' +
                     '<span class="name">' + c.label + '</span>' +
                     '<span class="len" id="len-' + c.id + '">' + fmt(data.meters) + '</span>';
