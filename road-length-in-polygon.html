@@ -320,6 +320,8 @@
               tags: ["footway","path","pedestrian","steps","cycleway","bridleway","corridor"] },
             { id: "sidewalk",   label: "Sidewalks / Crossings", color: "#94a3b8", defaultOff: true,
               tags: [] },
+            { id: "area",       label: "Pedestrian areas / squares", color: "#c026d3", defaultOff: true,
+              tags: [] },
             { id: "other",      label: "Other",            color: "#6b7280", tags: [] }
         ];
         var TAG_TO_CAT = {};
@@ -331,6 +333,9 @@
         var SIDEPATH_HWY = { footway: 1, path: 1, cycleway: 1, bridleway: 1 };
         function catFor(tags) {
             var hwy = tags.highway;
+            // area=yes marks a filled surface (square / plaza), not a line, so its
+            // perimeter "length" is meaningless and duplicates the centreline.
+            if (tags.area === "yes") return "area";
             if (SIDEPATH_HWY[hwy] &&
                 (SIDEWALK_FOOTWAY[tags.footway] || tags.is_sidepath === "yes")) {
                 return "sidewalk";
